@@ -1,9 +1,34 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
+
+// Rate limiting configuration
+const RATE_LIMIT_WINDOW_MS = 60 * 1000; // 1 minute
+const RATE_LIMIT_MAX_REQUESTS = 10; // 10 requests per minute per client
+
+// In-memory rate limiting (for edge function instances)
+const rateLimitMap = new Map<string, { count: number; resetTime: number }>();
+
+function checkRateLimit(clientId: string): { allowed: boolean; remaining: number } {
+  const now = Date.now();
+  const clientLimit = rateLimitMap.get(clientId);
+  
+  if (!clientLimit || now > clientLimit.resetTime) {
+    rateLimitMap.set(clientId, { count: 1, resetTime: now + RATE_LIMIT_WINDOW_MS });
+    return { allowed: true, remaining: RATE_LIMIT_MAX_REQUESTS - 1 };
+  }
+  
+  if (clientLimit.count >= RATE_LIMIT_MAX_REQUESTS) {
+    return { allowed: false, remaining: 0 };
+  }
+  
+  clientLimit.count++;
+  return { allowed: true, remaining: RATE_LIMIT_MAX_REQUESTS - clientLimit.count };
+}
 
 serve(async (req) => {
   // Handle CORS preflight requests
@@ -18,8 +43,61 @@ serve(async (req) => {
       throw new Error('AI service not configured');
     }
 
-    const { action, userImage, clothImage, category, analysis, userSize, garmentSize, generatedImage } = await req.json();
-    console.log(`Processing action: ${action}`);
+    const body = await req.json();
+    const { action, userImage, clothImage, category, analysis, userSize, garmentSize, generatedImage, clientId } = body;
+    console.log(`Processing action: ${action}, clientId: ${clientId || 'anonymous'}`);
+
+    // Validate required fields
+    if (!action) {
+      return new Response(JSON.stringify({ error: 'Action is required' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Rate limiting: require clientId for rate limit tracking
+    // If no clientId, use IP-based limiting (less reliable but still protective)
+    const rateLimitKey = clientId || req.headers.get('x-forwarded-for') || 'anonymous';
+    const rateCheck = checkRateLimit(rateLimitKey);
+    
+    if (!rateCheck.allowed) {
+      console.warn(`Rate limit exceeded for: ${rateLimitKey}`);
+      return new Response(JSON.stringify({ error: 'rate_limit', message: 'Too many requests. Please try again later.' }), {
+        status: 429,
+        headers: { 
+          ...corsHeaders, 
+          'Content-Type': 'application/json',
+          'Retry-After': '60',
+          'X-RateLimit-Remaining': '0'
+        },
+      });
+    }
+
+    // Validate image data when required
+    if (['analyze', 'generate'].includes(action)) {
+      if (!userImage || !clothImage) {
+        return new Response(JSON.stringify({ error: 'User image and cloth image are required' }), {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      
+      // Basic image size validation (base64 encoded images)
+      const maxImageSize = 10 * 1024 * 1024; // 10MB limit per image
+      if (userImage.length > maxImageSize || clothImage.length > maxImageSize) {
+        return new Response(JSON.stringify({ error: 'Image size exceeds maximum allowed (10MB)' }), {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+    }
+
+    // Validate category if provided
+    const validCategories = ['buzo', 'remera', 'camisa', 'vestido', 'falda', 'pantalon', 'zapatos', 'hoodie', 'chaqueta', 'abrigo'];
+    if (category && !validCategories.includes(category.toLowerCase())) {
+      console.warn(`Invalid category received: ${category}`);
+      // Don't reject, just log - category is optional
+    }
 
     if (action === 'analyze') {
       // Vision analysis using Gemini 2.5 Flash

@@ -64,12 +64,14 @@ export const TryOnWidget = ({ product, selectedSize, clientConfig }: TryOnWidget
 
       setStatus('creating');
 
-      // Call the virtual-tryon edge function
+      // Call the virtual-tryon edge function with clientId for rate limiting
       const { data, error } = await supabase.functions.invoke('virtual-tryon', {
         body: {
+          action: 'generate',
           userImageUrl: userPhotoUrl,
           garmentImageUrl: garmentUrl,
           category: product.category,
+          clientId: clientConfig.id, // For rate limiting
         },
       });
 
