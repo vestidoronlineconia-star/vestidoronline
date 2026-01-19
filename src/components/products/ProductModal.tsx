@@ -10,6 +10,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import {
   Select,
   SelectContent,
@@ -20,7 +21,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { CATEGORIES } from '@/lib/categories';
-import type { Product, CreateProductData } from '@/hooks/useProducts';
+import type { Product, CreateProductData, StockBySize } from '@/hooks/useProducts';
 
 interface ProductModalProps {
   open: boolean;
@@ -37,7 +38,10 @@ export const ProductModal = ({ open, onClose, onSave, product }: ProductModalPro
     sku: '',
     image_url: '',
     category: 'remeras',
+    description: '',
+    subcategory: '',
     sizes: [],
+    stock_by_size: {},
     price: undefined,
     is_active: true,
   });
@@ -50,7 +54,10 @@ export const ProductModal = ({ open, onClose, onSave, product }: ProductModalPro
         sku: product.sku || '',
         image_url: product.image_url,
         category: product.category,
+        description: product.description || '',
+        subcategory: product.subcategory || '',
         sizes: product.sizes,
+        stock_by_size: product.stock_by_size || {},
         price: product.price || undefined,
         is_active: product.is_active,
       });
@@ -60,7 +67,10 @@ export const ProductModal = ({ open, onClose, onSave, product }: ProductModalPro
         sku: '',
         image_url: '',
         category: 'remeras',
+        description: '',
+        subcategory: '',
         sizes: [],
+        stock_by_size: {},
         price: undefined,
         is_active: true,
       });
@@ -71,9 +81,18 @@ export const ProductModal = ({ open, onClose, onSave, product }: ProductModalPro
     e.preventDefault();
     if (!formData.name || !formData.image_url || !formData.category) return;
 
+    // Calculate total_stock from stock_by_size
+    const totalStock = Object.values(formData.stock_by_size || {}).reduce(
+      (sum, qty) => sum + qty, 
+      0
+    );
+
     setSaving(true);
     try {
-      await onSave(formData);
+      await onSave({
+        ...formData,
+        total_stock: totalStock,
+      });
       onClose();
     } finally {
       setSaving(false);
@@ -81,17 +100,46 @@ export const ProductModal = ({ open, onClose, onSave, product }: ProductModalPro
   };
 
   const toggleSize = (size: string) => {
+    setFormData(prev => {
+      const sizes = prev.sizes || [];
+      const stockBySize = { ...(prev.stock_by_size || {}) };
+      
+      if (sizes.includes(size)) {
+        // Remove size
+        delete stockBySize[size];
+        return {
+          ...prev,
+          sizes: sizes.filter(s => s !== size),
+          stock_by_size: stockBySize,
+        };
+      } else {
+        // Add size with 0 stock
+        stockBySize[size] = 0;
+        return {
+          ...prev,
+          sizes: [...sizes, size],
+          stock_by_size: stockBySize,
+        };
+      }
+    });
+  };
+
+  const updateStockForSize = (size: string, stock: number) => {
     setFormData(prev => ({
       ...prev,
-      sizes: prev.sizes?.includes(size)
-        ? prev.sizes.filter(s => s !== size)
-        : [...(prev.sizes || []), size],
+      stock_by_size: {
+        ...(prev.stock_by_size || {}),
+        [size]: Math.max(0, stock),
+      },
     }));
   };
 
+  const selectedSizes = formData.sizes || [];
+  const stockBySize = formData.stock_by_size || {};
+
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[500px]">
+      <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
             {product ? 'Editar Producto' : 'Nuevo Producto'}
@@ -107,6 +155,17 @@ export const ProductModal = ({ open, onClose, onSave, product }: ProductModalPro
               onChange={e => setFormData(prev => ({ ...prev, name: e.target.value }))}
               placeholder="Nombre del producto"
               required
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="description">Descripción</Label>
+            <Textarea
+              id="description"
+              value={formData.description || ''}
+              onChange={e => setFormData(prev => ({ ...prev, description: e.target.value }))}
+              placeholder="Descripción del producto..."
+              rows={3}
             />
           </div>
 
@@ -163,23 +222,35 @@ export const ProductModal = ({ open, onClose, onSave, product }: ProductModalPro
             )}
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="category">Categoría *</Label>
-            <Select
-              value={formData.category}
-              onValueChange={value => setFormData(prev => ({ ...prev, category: value }))}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Seleccionar categoría" />
-              </SelectTrigger>
-              <SelectContent>
-                {CATEGORIES.map(cat => (
-                  <SelectItem key={cat.value} value={cat.value}>
-                    {cat.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="category">Categoría *</Label>
+              <Select
+                value={formData.category}
+                onValueChange={value => setFormData(prev => ({ ...prev, category: value }))}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Seleccionar categoría" />
+                </SelectTrigger>
+                <SelectContent>
+                  {CATEGORIES.map(cat => (
+                    <SelectItem key={cat.value} value={cat.value}>
+                      {cat.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="subcategory">Subcategoría</Label>
+              <Input
+                id="subcategory"
+                value={formData.subcategory || ''}
+                onChange={e => setFormData(prev => ({ ...prev, subcategory: e.target.value }))}
+                placeholder="Ej: Deportivo, Casual"
+              />
+            </div>
           </div>
 
           <div className="space-y-2">
@@ -188,7 +259,7 @@ export const ProductModal = ({ open, onClose, onSave, product }: ProductModalPro
               {SIZE_OPTIONS.map(size => (
                 <Badge
                   key={size}
-                  variant={formData.sizes?.includes(size) ? 'default' : 'outline'}
+                  variant={selectedSizes.includes(size) ? 'default' : 'outline'}
                   className="cursor-pointer"
                   onClick={() => toggleSize(size)}
                 >
@@ -197,6 +268,30 @@ export const ProductModal = ({ open, onClose, onSave, product }: ProductModalPro
               ))}
             </div>
           </div>
+
+          {/* Stock by Size */}
+          {selectedSizes.length > 0 && (
+            <div className="space-y-3 p-4 rounded-lg bg-muted/50">
+              <Label>Stock por Talle</Label>
+              <div className="grid grid-cols-4 gap-3">
+                {SIZE_OPTIONS.filter(s => selectedSizes.includes(s)).map(size => (
+                  <div key={size} className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">{size}</Label>
+                    <Input
+                      type="number"
+                      min="0"
+                      value={stockBySize[size] || 0}
+                      onChange={e => updateStockForSize(size, parseInt(e.target.value) || 0)}
+                      className="h-9"
+                    />
+                  </div>
+                ))}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Stock total: {Object.values(stockBySize).reduce((sum, qty) => sum + qty, 0)} unidades
+              </p>
+            </div>
+          )}
 
           <div className="flex items-center justify-between">
             <Label htmlFor="is_active">Producto activo</Label>
