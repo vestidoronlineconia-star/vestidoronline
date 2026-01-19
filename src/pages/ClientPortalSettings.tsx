@@ -16,7 +16,7 @@ import {
   Palette, 
   Globe, 
   Sliders, 
-  Code,
+  Store,
   X,
   Plus,
   Copy,
@@ -35,7 +35,6 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { LogoUpload } from '@/components/LogoUpload';
 import { EmbedPreview } from '@/components/EmbedPreview';
 import { ResponsivePreview } from '@/components/ResponsivePreview';
-import { generateEmbedCode, getEmbedBaseUrl } from '@/lib/embedUrl';
 import { GARMENT_CATEGORIES } from '@/lib/categories';
 import { WebhookManager } from '@/components/webhooks/WebhookManager';
 import { TeamManager } from '@/components/team/TeamManager';
@@ -249,22 +248,36 @@ const ClientPortalSettings = () => {
     }
   };
 
-  const copyEmbedCode = () => {
-    if (!client) return;
+  const getSubdomainUrl = () => {
+    if (!client) return '';
     
-    const { code, isPreview } = generateEmbedCode(client.slug);
+    const hostname = window.location.hostname;
     
-    navigator.clipboard.writeText(code);
+    if (hostname.includes('lovable.app')) {
+      if (hostname.includes('-preview--')) {
+        // Preview URL format: {slug}-preview--{project-id}.lovable.app
+        const projectPart = hostname.split('-preview--')[1];
+        return `https://${client.slug}-preview--${projectPart}`;
+      } else {
+        // Published URL format: {slug}.{domain}.lovable.app
+        const parts = hostname.split('.');
+        if (parts.length >= 3) {
+          parts[0] = client.slug;
+          return `https://${parts.join('.')}`;
+        }
+        return `https://${client.slug}.${hostname}`;
+      }
+    }
+    // Custom domain
+    return `https://${client.slug}.${hostname}`;
+  };
+
+  const copySubdomainUrl = () => {
+    const url = getSubdomainUrl();
+    navigator.clipboard.writeText(url);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
-    
-    if (isPreview) {
-      toast.warning('Código copiado. ⚠️ Debes publicar la app para que el embed funcione sin login.', {
-        duration: 5000,
-      });
-    } else {
-      toast.success('Código copiado');
-    }
+    toast.success('URL de la tienda copiada');
   };
 
   const copyApiKey = () => {
@@ -317,10 +330,10 @@ const ClientPortalSettings = () => {
               </Button>
               <Button
                 variant="outline"
-                onClick={() => window.open(`/embed?clientId=${client.slug}`, '_blank')}
+                onClick={() => window.open(getSubdomainUrl(), '_blank')}
               >
                 <ExternalLink className="w-4 h-4 mr-2" />
-                Preview
+                Ver Tienda
               </Button>
               <Button onClick={saveSettings} disabled={saving}>
                 {saving ? (
@@ -367,9 +380,9 @@ const ClientPortalSettings = () => {
                 <Users className="w-4 h-4 mr-2" />
                 Equipo
               </TabsTrigger>
-              <TabsTrigger value="embed">
-                <Code className="w-4 h-4 mr-2" />
-                Embed
+              <TabsTrigger value="store">
+                <Store className="w-4 h-4 mr-2" />
+                Tienda
               </TabsTrigger>
             </TabsList>
 
@@ -797,32 +810,33 @@ const ClientPortalSettings = () => {
               </Card>
             </TabsContent>
 
-            {/* Embed Tab */}
-            <TabsContent value="embed" className="space-y-6">
+            {/* Store Tab */}
+            <TabsContent value="store" className="space-y-6">
               <Card>
                 <CardHeader>
-                  <CardTitle>Código de Embed</CardTitle>
+                  <CardTitle>URL de tu Tienda</CardTitle>
                   <CardDescription>
-                    Copia este código y pégalo en tu sitio web
+                    Esta es la dirección web de tu tienda con el probador virtual integrado
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <div className="relative">
-                    <pre className="p-4 bg-muted rounded-lg text-sm overflow-x-auto">
-{`<iframe 
-  src="${window.location.origin}/embed?clientId=${client.slug}"
-  style="width: 100%; height: 700px; border: none;"
-  allow="camera"
-></iframe>`}
-                    </pre>
-                    <Button
-                      size="sm"
-                      className="absolute top-2 right-2"
-                      onClick={copyEmbedCode}
-                    >
+                  <div className="flex gap-2">
+                    <Input
+                      value={getSubdomainUrl()}
+                      readOnly
+                      className="font-mono text-sm"
+                    />
+                    <Button variant="outline" onClick={copySubdomainUrl}>
                       {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
                     </Button>
+                    <Button onClick={() => window.open(getSubdomainUrl(), '_blank')}>
+                      <ExternalLink className="w-4 h-4 mr-2" />
+                      Abrir Tienda
+                    </Button>
                   </div>
+                  <p className="text-xs text-muted-foreground">
+                    Comparte esta URL con tus clientes para que accedan a tu tienda virtual
+                  </p>
                 </CardContent>
               </Card>
 

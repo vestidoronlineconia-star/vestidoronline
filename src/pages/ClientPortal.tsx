@@ -11,7 +11,7 @@ import { toast } from 'sonner';
 import { 
   Plus, 
   Settings, 
-  Code, 
+  Store, 
   BarChart3, 
   Trash2, 
   Copy, 
@@ -26,7 +26,6 @@ import {
   ShoppingBag,
   ExternalLink,
 } from 'lucide-react';
-import { generateEmbedCode } from '@/lib/embedUrl';
 import {
   Dialog,
   DialogContent,
@@ -219,21 +218,6 @@ const ClientPortal = () => {
     }
   };
 
-  const copyEmbedCode = (client: EmbedClient) => {
-    const { code, isPreview } = generateEmbedCode(client.slug);
-    
-    navigator.clipboard.writeText(code);
-    setCopiedId(client.id);
-    setTimeout(() => setCopiedId(null), 2000);
-    
-    if (isPreview) {
-      toast.warning('Código copiado. ⚠️ Debes publicar la app para que el embed funcione sin login.', {
-        duration: 5000,
-      });
-    } else {
-      toast.success('Código copiado al portapapeles');
-    }
-  };
 
   const copySubdomainUrl = (client: EmbedClient) => {
     // Get the base domain from current hostname
@@ -322,7 +306,7 @@ const ClientPortal = () => {
           <div className="flex items-center justify-between mb-8">
             <div>
               <h1 className="text-3xl font-bold">Portal de Clientes</h1>
-              <p className="text-muted-foreground">Gestiona tus widgets embebibles</p>
+              <p className="text-muted-foreground">Gestiona tus tiendas virtuales</p>
             </div>
             <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
               <DialogTrigger asChild>
@@ -379,7 +363,7 @@ const ClientPortal = () => {
             <Card className="border-dashed">
               <CardContent className="flex flex-col items-center justify-center py-12">
                 <div className="rounded-full bg-muted p-4 mb-4">
-                  <Code className="w-8 h-8 text-muted-foreground" />
+                  <Store className="w-8 h-8 text-muted-foreground" />
                 </div>
                 <h3 className="text-lg font-medium mb-2">Sin clientes aún</h3>
                 <p className="text-muted-foreground text-center mb-4 max-w-sm">
