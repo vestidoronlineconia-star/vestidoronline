@@ -10,30 +10,15 @@ interface TestStepProps {
   onPrevious: () => void;
 }
 
-const getSubdomainUrl = (slug: string) => {
-  const hostname = window.location.hostname;
-  
-  if (hostname.includes('lovable.app')) {
-    if (hostname.includes('-preview--')) {
-      const projectPart = hostname.split('-preview--')[1];
-      return `https://${slug}-preview--${projectPart}`;
-    } else {
-      const parts = hostname.split('.');
-      if (parts.length >= 3) {
-        parts[0] = slug;
-        return `https://${parts.join('.')}`;
-      }
-      return `https://${slug}.${hostname}`;
-    }
-  }
-  return `https://${slug}.${hostname}`;
+const getStoreUrl = (slug: string) => {
+  return `${window.location.origin}/tienda/${slug}`;
 };
 
 export const TestStep = ({ slug, onNext, onPrevious }: TestStepProps) => {
   const [tested, setTested] = useState(false);
   const [testResult, setTestResult] = useState<'success' | 'error' | null>(null);
 
-  const storeUrl = getSubdomainUrl(slug);
+  const storeUrl = getStoreUrl(slug);
 
   const runTest = () => {
     // Open the store in a new tab for testing

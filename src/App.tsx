@@ -5,7 +5,6 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate, Outlet } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
-import { useSubdomain } from "@/hooks/useSubdomain";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import AuthCallback from "./pages/AuthCallback";
@@ -67,83 +66,67 @@ function AuthRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
-// Component to check if we're on a client subdomain and route accordingly
-function SubdomainRouter({ children }: { children: React.ReactNode }) {
-  const { isSubdomain, loading } = useSubdomain();
-
-  if (loading) {
-    return <PageLoader />;
-  }
-
-  // If we're on a client subdomain, show the ClientStore
-  if (isSubdomain) {
-    return (
-      <Suspense fallback={<PageLoader />}>
-        <ClientStore />
-      </Suspense>
-    );
-  }
-
-  // Otherwise, render the normal app routes
-  return <>{children}</>;
-}
-
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
       <Toaster />
       <Sonner />
       <BrowserRouter>
-        <SubdomainRouter>
-          <Routes>
-            {/* Protected routes with layout */}
-            <Route element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
-              <Route path="/" element={<Index />} />
-              <Route path="/client-portal" element={
-                <Suspense fallback={<PageLoader />}>
-                  <ClientPortal />
-                </Suspense>
-              } />
-              <Route path="/client-portal/settings/:clientId" element={
-                <Suspense fallback={<PageLoader />}>
-                  <ClientPortalSettings />
-                </Suspense>
-              } />
-              <Route path="/client-portal/docs/:clientId" element={
-                <Suspense fallback={<PageLoader />}>
-                  <ClientPortalDocs />
-                </Suspense>
-              } />
-              <Route path="/client-portal/analytics/:clientId" element={
-                <Suspense fallback={<PageLoader />}>
-                  <ClientPortalAnalytics />
-                </Suspense>
-              } />
-              <Route path="/client-portal/onboarding/:clientId" element={
-                <Suspense fallback={<PageLoader />}>
-                  <ClientPortalOnboarding />
-                </Suspense>
-              } />
-              <Route path="/client-portal/products/:clientId" element={
-                <Suspense fallback={<PageLoader />}>
-                  <ClientPortalProducts />
-                </Suspense>
-              } />
-              <Route path="/admin/requests" element={
-                <Suspense fallback={<PageLoader />}>
-                  <AdminRequests />
-                </Suspense>
-              } />
-            </Route>
-            
-            {/* Auth routes */}
-            <Route path="/auth" element={<AuthRoute><Auth /></AuthRoute>} />
-            <Route path="/auth/callback" element={<AuthCallback />} />
-            
-            {/* Catch-all */}
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </SubdomainRouter>
+        <Routes>
+          {/* Public store route - no auth required */}
+          <Route path="/tienda/:slug" element={
+            <Suspense fallback={<PageLoader />}>
+              <ClientStore />
+            </Suspense>
+          } />
+          
+          {/* Protected routes with layout */}
+          <Route element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
+            <Route path="/" element={<Index />} />
+            <Route path="/client-portal" element={
+              <Suspense fallback={<PageLoader />}>
+                <ClientPortal />
+              </Suspense>
+            } />
+            <Route path="/client-portal/settings/:clientId" element={
+              <Suspense fallback={<PageLoader />}>
+                <ClientPortalSettings />
+              </Suspense>
+            } />
+            <Route path="/client-portal/docs/:clientId" element={
+              <Suspense fallback={<PageLoader />}>
+                <ClientPortalDocs />
+              </Suspense>
+            } />
+            <Route path="/client-portal/analytics/:clientId" element={
+              <Suspense fallback={<PageLoader />}>
+                <ClientPortalAnalytics />
+              </Suspense>
+            } />
+            <Route path="/client-portal/onboarding/:clientId" element={
+              <Suspense fallback={<PageLoader />}>
+                <ClientPortalOnboarding />
+              </Suspense>
+            } />
+            <Route path="/client-portal/products/:clientId" element={
+              <Suspense fallback={<PageLoader />}>
+                <ClientPortalProducts />
+              </Suspense>
+            } />
+            <Route path="/admin/requests" element={
+              <Suspense fallback={<PageLoader />}>
+                <AdminRequests />
+              </Suspense>
+            } />
+          </Route>
+          
+          {/* Auth routes */}
+          <Route path="/auth" element={<AuthRoute><Auth /></AuthRoute>} />
+          <Route path="/auth/callback" element={<AuthCallback />} />
+          
+          {/* Catch-all */}
+          <Route path="*" element={<NotFound />} />
+        </Routes>
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>

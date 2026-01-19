@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { Product } from '@/hooks/useProducts';
-import { ClientConfig } from '@/hooks/useSubdomain';
+import { ClientConfig } from '@/hooks/useClientBySlug';
 import {
   Dialog,
   DialogContent,

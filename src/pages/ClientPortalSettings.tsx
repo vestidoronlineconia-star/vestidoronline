@@ -248,32 +248,13 @@ const ClientPortalSettings = () => {
     }
   };
 
-  const getSubdomainUrl = () => {
+  const getStoreUrl = () => {
     if (!client) return '';
-    
-    const hostname = window.location.hostname;
-    
-    if (hostname.includes('lovable.app')) {
-      if (hostname.includes('-preview--')) {
-        // Preview URL format: {slug}-preview--{project-id}.lovable.app
-        const projectPart = hostname.split('-preview--')[1];
-        return `https://${client.slug}-preview--${projectPart}`;
-      } else {
-        // Published URL format: {slug}.{domain}.lovable.app
-        const parts = hostname.split('.');
-        if (parts.length >= 3) {
-          parts[0] = client.slug;
-          return `https://${parts.join('.')}`;
-        }
-        return `https://${client.slug}.${hostname}`;
-      }
-    }
-    // Custom domain
-    return `https://${client.slug}.${hostname}`;
+    return `${window.location.origin}/tienda/${client.slug}`;
   };
 
-  const copySubdomainUrl = () => {
-    const url = getSubdomainUrl();
+  const copyStoreUrl = () => {
+    const url = getStoreUrl();
     navigator.clipboard.writeText(url);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
@@ -330,7 +311,7 @@ const ClientPortalSettings = () => {
               </Button>
               <Button
                 variant="outline"
-                onClick={() => window.open(getSubdomainUrl(), '_blank')}
+                onClick={() => window.open(getStoreUrl(), '_blank')}
               >
                 <ExternalLink className="w-4 h-4 mr-2" />
                 Ver Tienda
@@ -822,14 +803,14 @@ const ClientPortalSettings = () => {
                 <CardContent className="space-y-4">
                   <div className="flex gap-2">
                     <Input
-                      value={getSubdomainUrl()}
+                      value={getStoreUrl()}
                       readOnly
                       className="font-mono text-sm"
                     />
-                    <Button variant="outline" onClick={copySubdomainUrl}>
+                    <Button variant="outline" onClick={copyStoreUrl}>
                       {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
                     </Button>
-                    <Button onClick={() => window.open(getSubdomainUrl(), '_blank')}>
+                    <Button onClick={() => window.open(getStoreUrl(), '_blank')}>
                       <ExternalLink className="w-4 h-4 mr-2" />
                       Abrir Tienda
                     </Button>

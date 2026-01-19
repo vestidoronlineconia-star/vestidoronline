@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react';
-import { useSubdomain } from '@/hooks/useSubdomain';
+import { useParams } from 'react-router-dom';
+import { useClientBySlug } from '@/hooks/useClientBySlug';
 import { usePublicProducts, Product } from '@/hooks/useProducts';
 import { CATEGORIES } from '@/lib/categories';
 import { Button } from '@/components/ui/button';
@@ -10,7 +11,8 @@ import { cn } from '@/lib/utils';
 import { ProductDetailModal } from '@/components/store/ProductDetailModal';
 
 const ClientStore = () => {
-  const { clientConfig, loading: configLoading, error } = useSubdomain();
+  const { slug } = useParams<{ slug: string }>();
+  const { clientConfig, loading: configLoading, error } = useClientBySlug(slug);
   const { products, loading: productsLoading } = usePublicProducts(
     clientConfig?.id || null,
     null // Load all products, filter by category in UI

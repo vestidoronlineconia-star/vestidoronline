@@ -10,29 +10,14 @@ interface InstallStepProps {
   onPrevious: () => void;
 }
 
-const getSubdomainUrl = (slug: string) => {
-  const hostname = window.location.hostname;
-  
-  if (hostname.includes('lovable.app')) {
-    if (hostname.includes('-preview--')) {
-      const projectPart = hostname.split('-preview--')[1];
-      return `https://${slug}-preview--${projectPart}`;
-    } else {
-      const parts = hostname.split('.');
-      if (parts.length >= 3) {
-        parts[0] = slug;
-        return `https://${parts.join('.')}`;
-      }
-      return `https://${slug}.${hostname}`;
-    }
-  }
-  return `https://${slug}.${hostname}`;
+const getStoreUrl = (slug: string) => {
+  return `${window.location.origin}/tienda/${slug}`;
 };
 
 export const InstallStep = ({ slug, onNext, onPrevious }: InstallStepProps) => {
   const [copied, setCopied] = useState(false);
 
-  const storeUrl = getSubdomainUrl(slug);
+  const storeUrl = getStoreUrl(slug);
 
   const copyUrl = () => {
     navigator.clipboard.writeText(storeUrl);
