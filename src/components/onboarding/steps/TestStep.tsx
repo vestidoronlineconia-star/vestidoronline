@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Play, CheckCircle2, XCircle } from 'lucide-react';
+import { Play, CheckCircle2, XCircle, ExternalLink } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -10,14 +10,34 @@ interface TestStepProps {
   onPrevious: () => void;
 }
 
+const getSubdomainUrl = (slug: string) => {
+  const hostname = window.location.hostname;
+  
+  if (hostname.includes('lovable.app')) {
+    if (hostname.includes('-preview--')) {
+      const projectPart = hostname.split('-preview--')[1];
+      return `https://${slug}-preview--${projectPart}`;
+    } else {
+      const parts = hostname.split('.');
+      if (parts.length >= 3) {
+        parts[0] = slug;
+        return `https://${parts.join('.')}`;
+      }
+      return `https://${slug}.${hostname}`;
+    }
+  }
+  return `https://${slug}.${hostname}`;
+};
+
 export const TestStep = ({ slug, onNext, onPrevious }: TestStepProps) => {
   const [tested, setTested] = useState(false);
   const [testResult, setTestResult] = useState<'success' | 'error' | null>(null);
 
-  const embedUrl = `${window.location.origin}/embed?clientId=${slug}`;
+  const storeUrl = getSubdomainUrl(slug);
 
   const runTest = () => {
-    // Simulate a test - in production this would actually test the widget
+    // Open the store in a new tab for testing
+    window.open(storeUrl, '_blank');
     setTested(true);
     setTestResult('success');
   };
@@ -25,20 +45,21 @@ export const TestStep = ({ slug, onNext, onPrevious }: TestStepProps) => {
   return (
     <div className="space-y-6">
       <div>
-        <Label className="text-base font-medium">Probar el Widget</Label>
+        <Label className="text-base font-medium">Probar tu Tienda</Label>
         <p className="text-sm text-muted-foreground mt-1">
-          Prueba tu widget en un entorno seguro antes de instalarlo en tu sitio.
+          Abre tu tienda en una nueva pestaña para verificar que todo funciona correctamente.
         </p>
       </div>
 
-      <div className="border rounded-lg overflow-hidden bg-muted/50">
-        <div className="aspect-video relative">
-          <iframe
-            src={embedUrl}
-            className="absolute inset-0 w-full h-full"
-            title="Widget Preview"
-            allow="camera"
-          />
+      <div className="border rounded-lg overflow-hidden bg-muted/50 p-8">
+        <div className="text-center space-y-4">
+          <div className="w-16 h-16 mx-auto bg-primary/20 rounded-full flex items-center justify-center">
+            <ExternalLink className="w-8 h-8 text-primary" />
+          </div>
+          <div>
+            <h3 className="font-medium">URL de tu tienda</h3>
+            <p className="text-sm text-muted-foreground font-mono mt-1">{storeUrl}</p>
+          </div>
         </div>
       </div>
 
@@ -46,10 +67,10 @@ export const TestStep = ({ slug, onNext, onPrevious }: TestStepProps) => {
         <div className="text-center">
           <Button onClick={runTest} size="lg">
             <Play className="h-4 w-4 mr-2" />
-            Ejecutar Prueba
+            Abrir Tienda
           </Button>
           <p className="text-sm text-muted-foreground mt-2">
-            Verifica que el widget carga correctamente
+            Se abrirá en una nueva pestaña
           </p>
         </div>
       )}
@@ -58,7 +79,7 @@ export const TestStep = ({ slug, onNext, onPrevious }: TestStepProps) => {
         <Alert className="border-green-500 bg-green-50 dark:bg-green-950">
           <CheckCircle2 className="h-4 w-4 text-green-500" />
           <AlertDescription className="text-green-700 dark:text-green-300">
-            ¡El widget funciona correctamente! Puedes continuar con la instalación.
+            ¡Tu tienda está funcionando! Puedes continuar con la configuración.
           </AlertDescription>
         </Alert>
       )}
@@ -67,7 +88,7 @@ export const TestStep = ({ slug, onNext, onPrevious }: TestStepProps) => {
         <Alert variant="destructive">
           <XCircle className="h-4 w-4" />
           <AlertDescription>
-            Hubo un problema al cargar el widget. Por favor revisa la configuración.
+            Hubo un problema al acceder a tu tienda. Por favor revisa la configuración.
           </AlertDescription>
         </Alert>
       )}
