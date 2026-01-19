@@ -23,6 +23,8 @@ import {
   Shield,
   Eye,
   Pencil,
+  ShoppingBag,
+  ExternalLink,
 } from 'lucide-react';
 import { generateEmbedCode } from '@/lib/embedUrl';
 import {
@@ -233,6 +235,38 @@ const ClientPortal = () => {
     }
   };
 
+  const copySubdomainUrl = (client: EmbedClient) => {
+    // Get the base domain from current hostname
+    const hostname = window.location.hostname;
+    let subdomainUrl = '';
+    
+    if (hostname.includes('lovable.app')) {
+      // For Lovable preview/published URLs
+      if (hostname.includes('-preview--')) {
+        // Preview URL format: {slug}-preview--{project-id}.lovable.app
+        const projectPart = hostname.split('-preview--')[1];
+        subdomainUrl = `https://${client.slug}-preview--${projectPart}`;
+      } else {
+        // Published URL format: {slug}.{domain}.lovable.app
+        const parts = hostname.split('.');
+        if (parts.length >= 3) {
+          parts[0] = client.slug;
+          subdomainUrl = `https://${parts.join('.')}`;
+        } else {
+          subdomainUrl = `https://${client.slug}.${hostname}`;
+        }
+      }
+    } else {
+      // For custom domains
+      subdomainUrl = `https://${client.slug}.${hostname}`;
+    }
+    
+    navigator.clipboard.writeText(subdomainUrl);
+    setCopiedId(client.id + '-url');
+    setTimeout(() => setCopiedId(null), 2000);
+    toast.success('URL del subdominio copiada');
+  };
+
   if (loading || roleLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
@@ -422,14 +456,22 @@ const ClientPortal = () => {
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() => copyEmbedCode(client)}
+                          onClick={() => copySubdomainUrl(client)}
                         >
-                          {copiedId === client.id ? (
+                          {copiedId === client.id + '-url' ? (
                             <Check className="w-4 h-4 mr-1" />
                           ) : (
                             <Copy className="w-4 h-4 mr-1" />
                           )}
-                          Código
+                          URL
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => navigate(`/client-portal/products/${client.id}`)}
+                        >
+                          <ShoppingBag className="w-4 h-4 mr-1" />
+                          Productos
                         </Button>
                         <Button
                           variant="outline"

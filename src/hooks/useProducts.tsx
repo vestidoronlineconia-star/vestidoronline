@@ -3,6 +3,9 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import type { Json } from '@/integrations/supabase/types';
 
+// Stock by size type (e.g., {"S": 5, "M": 10, "L": 3})
+export type StockBySize = Record<string, number>;
+
 export interface Product {
   id: string;
   client_id: string;
@@ -10,7 +13,11 @@ export interface Product {
   sku: string | null;
   image_url: string;
   category: string;
+  subcategory: string | null;
+  description: string | null;
   sizes: string[];
+  stock_by_size: StockBySize;
+  total_stock: number;
   price: number | null;
   is_active: boolean;
   metadata: Json;
@@ -23,7 +30,11 @@ export interface CreateProductData {
   sku?: string;
   image_url: string;
   category: string;
+  subcategory?: string;
+  description?: string;
   sizes?: string[];
+  stock_by_size?: StockBySize;
+  total_stock?: number;
   price?: number;
   is_active?: boolean;
   metadata?: Json;
@@ -40,7 +51,11 @@ const mapDbToProduct = (data: any): Product => ({
   sku: data.sku,
   image_url: data.image_url,
   category: data.category,
+  subcategory: data.subcategory || null,
+  description: data.description || null,
   sizes: data.sizes || [],
+  stock_by_size: (data.stock_by_size as StockBySize) || {},
+  total_stock: data.total_stock || 0,
   price: data.price,
   is_active: data.is_active,
   metadata: data.metadata || {},
