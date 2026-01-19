@@ -89,6 +89,13 @@ export type Database = {
             referencedRelation: "embed_clients"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "api_rate_limits_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "embed_clients_public"
+            referencedColumns: ["id"]
+          },
         ]
       }
       client_products: {
@@ -154,6 +161,13 @@ export type Database = {
             referencedRelation: "embed_clients"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "client_products_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "embed_clients_public"
+            referencedColumns: ["id"]
+          },
         ]
       }
       client_team_members: {
@@ -193,6 +207,13 @@ export type Database = {
             columns: ["client_id"]
             isOneToOne: false
             referencedRelation: "embed_clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "client_team_members_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "embed_clients_public"
             referencedColumns: ["id"]
           },
         ]
@@ -240,6 +261,13 @@ export type Database = {
             columns: ["client_id"]
             isOneToOne: false
             referencedRelation: "embed_clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "client_webhooks_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "embed_clients_public"
             referencedColumns: ["id"]
           },
         ]
@@ -367,6 +395,13 @@ export type Database = {
             referencedRelation: "embed_clients"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "embed_usage_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "embed_clients_public"
+            referencedColumns: ["id"]
+          },
         ]
       }
       onboarding_progress: {
@@ -405,6 +440,13 @@ export type Database = {
             referencedRelation: "embed_clients"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "onboarding_progress_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: true
+            referencedRelation: "embed_clients_public"
+            referencedColumns: ["id"]
+          },
         ]
       }
       size_guides: {
@@ -441,6 +483,13 @@ export type Database = {
             columns: ["client_id"]
             isOneToOne: false
             referencedRelation: "embed_clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "size_guides_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "embed_clients_public"
             referencedColumns: ["id"]
           },
         ]
@@ -581,7 +630,75 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      embed_clients_public: {
+        Row: {
+          background_color: string | null
+          button_style: string | null
+          cta_text: string | null
+          custom_title: string | null
+          enabled_categories: string[] | null
+          entry_animation: string | null
+          error_message: string | null
+          id: string | null
+          is_active: boolean | null
+          logo_url: string | null
+          name: string | null
+          placeholder_garment: string | null
+          placeholder_photo: string | null
+          primary_color: string | null
+          secondary_color: string | null
+          show_fit_result: boolean | null
+          show_size_selector: boolean | null
+          slug: string | null
+          text_color: string | null
+          theme_mode: string | null
+        }
+        Insert: {
+          background_color?: string | null
+          button_style?: string | null
+          cta_text?: string | null
+          custom_title?: string | null
+          enabled_categories?: string[] | null
+          entry_animation?: string | null
+          error_message?: string | null
+          id?: string | null
+          is_active?: boolean | null
+          logo_url?: string | null
+          name?: string | null
+          placeholder_garment?: string | null
+          placeholder_photo?: string | null
+          primary_color?: string | null
+          secondary_color?: string | null
+          show_fit_result?: boolean | null
+          show_size_selector?: boolean | null
+          slug?: string | null
+          text_color?: string | null
+          theme_mode?: string | null
+        }
+        Update: {
+          background_color?: string | null
+          button_style?: string | null
+          cta_text?: string | null
+          custom_title?: string | null
+          enabled_categories?: string[] | null
+          entry_animation?: string | null
+          error_message?: string | null
+          id?: string | null
+          is_active?: boolean | null
+          logo_url?: string | null
+          name?: string | null
+          placeholder_garment?: string | null
+          placeholder_photo?: string | null
+          primary_color?: string | null
+          secondary_color?: string | null
+          show_fit_result?: boolean | null
+          show_size_selector?: boolean | null
+          slug?: string | null
+          text_color?: string | null
+          theme_mode?: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       get_user_role_for_client: {

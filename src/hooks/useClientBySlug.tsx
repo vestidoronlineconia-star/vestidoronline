@@ -42,11 +42,11 @@ export const useClientBySlug = (slug: string | undefined): UseClientBySlugResult
       setError(null);
 
       try {
+        // Use the public view that excludes sensitive data (api_key, user_id)
         const { data, error: fetchError } = await supabase
-          .from('embed_clients')
+          .from('embed_clients_public')
           .select('*')
           .eq('slug', slug)
-          .eq('is_active', true)
           .maybeSingle();
 
         if (fetchError) {
