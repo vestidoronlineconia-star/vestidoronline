@@ -10,7 +10,6 @@ import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import AuthCallback from "./pages/AuthCallback";
 import NotFound from "./pages/NotFound";
-import Embed from "./pages/Embed";
 import AppLayout from "./components/AppLayout";
 
 // Lazy load heavy pages for better performance
@@ -140,9 +139,6 @@ const App = () => (
             {/* Auth routes */}
             <Route path="/auth" element={<AuthRoute><Auth /></AuthRoute>} />
             <Route path="/auth/callback" element={<AuthCallback />} />
-            
-            {/* Public routes */}
-            <Route path="/embed" element={<Embed />} />
             
             {/* Catch-all */}
             <Route path="*" element={<NotFound />} />
