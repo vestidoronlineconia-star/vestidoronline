@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Product } from '@/hooks/useProducts';
-import { ClientConfig } from '@/hooks/useSubdomain';
+import { ClientConfig } from '@/hooks/useClientBySlug';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { FileUpload } from '@/components/FileUpload';
