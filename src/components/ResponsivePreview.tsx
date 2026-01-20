@@ -35,7 +35,7 @@ export const ResponsivePreview = ({ clientSlug }: ResponsivePreviewProps) => {
   const scaleY = containerMaxHeight / effectiveHeight;
   const scale = Math.min(scaleX, scaleY, 1);
 
-  const iframeUrl = `/embed?clientId=${clientSlug}&preview=true`;
+  const iframeUrl = `/tienda/${clientSlug}`;
 
   return (
     <div className="space-y-4">

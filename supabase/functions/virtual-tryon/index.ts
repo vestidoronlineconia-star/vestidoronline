@@ -648,39 +648,9 @@ RESULTADO: Una imagen fotorrealista tipo catálogo de moda mostrando la misma pe
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
 
-    } else if (action === 'tips') {
-      // Generate stylist tips using direct Google API
-      const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${GOOGLE_API_KEY}`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents: [{
-              role: 'user',
-              parts: [{ 
-                text: `Como estilista, da 1 consejo breve y chic para este look (${analysis.cloth_analysis.type} ${analysis.cloth_analysis.color}).`
-              }]
-            }]
-          })
-        }
-      );
-
-      if (!response.ok) {
-        console.error('Tips API error:', response.status);
-        throw new Error('Tips generation failed');
-      }
-
-      const data = await response.json();
-      const tip = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
-      console.log('Tips generated successfully');
-
-      return new Response(JSON.stringify({ tip }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
+    } else {
+      throw new Error('Invalid action');
     }
-
-    throw new Error('Invalid action');
 
   } catch (error) {
     console.error('Error in virtual-tryon function:', error);
