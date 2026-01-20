@@ -16,6 +16,23 @@ interface TryOnWidgetProps {
   clientConfig: ClientConfig;
 }
 
+// Convert image URL to base64
+const imageToBase64 = async (url: string): Promise<string> => {
+  const response = await fetch(url);
+  const blob = await response.blob();
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const result = reader.result as string;
+      // Extract base64 without the data URL prefix
+      const base64 = result.split(',')[1];
+      resolve(base64);
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
+};
+
 export const TryOnWidget = ({ product, selectedSize, clientConfig }: TryOnWidgetProps) => {
   const [userPhoto, setUserPhoto] = useState<FileData | null>(null);
   const [resultImage, setResultImage] = useState<string | null>(null);
@@ -42,43 +59,60 @@ export const TryOnWidget = ({ product, selectedSize, clientConfig }: TryOnWidget
     setErrorMessage(null);
 
     try {
-      // Get public URL for garment image
-      const garmentUrl = product.image_url;
-      
-      // Upload user photo if it's a blob
-      let userPhotoUrl = userPhoto.preview;
+      // Convert user photo to base64
+      let userBase64: string;
       if (userPhoto.preview.startsWith('blob:')) {
-        const fileName = `tryon/${Date.now()}-user.jpg`;
-        const { data: uploadData, error: uploadError } = await supabase.storage
-          .from('user-uploads')
-          .upload(fileName, userPhoto.file, { contentType: userPhoto.file.type });
-
-        if (uploadError) throw uploadError;
-
-        const { data: urlData } = supabase.storage
-          .from('user-uploads')
-          .getPublicUrl(fileName);
-        
-        userPhotoUrl = urlData.publicUrl;
+        // For blob URLs, read from the file directly
+        userBase64 = await new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onloadend = () => {
+            const result = reader.result as string;
+            resolve(result.split(',')[1]);
+          };
+          reader.onerror = reject;
+          reader.readAsDataURL(userPhoto.file);
+        });
+      } else {
+        userBase64 = await imageToBase64(userPhoto.preview);
       }
 
-      setStatus('creating');
+      // Convert garment image to base64
+      const garmentBase64 = await imageToBase64(product.image_url);
 
-      // Call the virtual-tryon edge function with clientId for rate limiting
-      const { data, error } = await supabase.functions.invoke('virtual-tryon', {
+      // Step 1: Analyze images
+      const { data: analyzeData, error: analyzeError } = await supabase.functions.invoke('virtual-tryon', {
         body: {
-          action: 'generate',
-          userImageUrl: userPhotoUrl,
-          garmentImageUrl: garmentUrl,
+          action: 'analyze',
+          userImage: userBase64,
+          clothImage: garmentBase64,
           category: product.category,
-          clientId: clientConfig.id, // For rate limiting
+          clientId: clientConfig.id,
         },
       });
 
-      if (error) throw error;
+      if (analyzeError) throw analyzeError;
+      if (!analyzeData?.analysis) throw new Error('No se pudo analizar las imágenes');
 
-      if (data?.resultImageUrl) {
-        setResultImage(data.resultImageUrl);
+      setStatus('creating');
+
+      // Step 2: Generate try-on image
+      const { data: generateData, error: generateError } = await supabase.functions.invoke('virtual-tryon', {
+        body: {
+          action: 'generate',
+          userImage: userBase64,
+          clothImage: garmentBase64,
+          category: product.category,
+          analysis: analyzeData.analysis,
+          userSize: selectedSize || 'M',
+          garmentSize: selectedSize || 'M',
+          clientId: clientConfig.id,
+        },
+      });
+
+      if (generateError) throw generateError;
+
+      if (generateData?.image) {
+        setResultImage(generateData.image);
         setStatus('complete');
         
         // Log usage
