@@ -36,14 +36,14 @@ export const LoadingProgress = ({ progress, status, mode = "tryon" }: LoadingPro
       
       {/* Complete Check Icon */}
       {isComplete && (
-        <div className="flex items-center justify-center w-16 h-16 rounded-full bg-green-500/20">
-          <Check className="w-8 h-8 text-green-500" />
+        <div className="flex items-center justify-center w-16 h-16 rounded-full bg-green-100">
+          <Check className="w-8 h-8 text-green-600" />
         </div>
       )}
 
       {/* Progress percentage */}
       <div className="text-center space-y-2">
-        <span className="text-2xl font-mono font-bold text-white">{Math.round(progress)}%</span>
+        <span className="text-2xl font-mono font-bold text-gray-900">{Math.round(progress)}%</span>
         
         {/* Animated Status Text */}
         <div
@@ -51,7 +51,7 @@ export const LoadingProgress = ({ progress, status, mode = "tryon" }: LoadingPro
           className="animate-fade-in"
         >
           <span className={`text-sm font-medium ${
-            isComplete ? "text-green-400" : "text-white/70"
+            isComplete ? "text-green-600" : "text-gray-600"
           }`}>
             {message}
           </span>

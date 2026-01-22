@@ -74,7 +74,7 @@ export const BrandingStep = ({ clientData, onUpdate, onNext, onPrevious }: Brand
 
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-2">
-            <Label htmlFor="primary_color">Color Primario</Label>
+            <Label htmlFor="primary_color">Color de Botones</Label>
             <div className="flex gap-2">
               <Input
                 type="color"
