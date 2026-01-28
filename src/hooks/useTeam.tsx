@@ -26,10 +26,31 @@ export interface InviteMemberData {
   role: TeamRole;
 }
 
-export const useTeam = (clientId: string | null) => {
+export const useTeam = (clientId: string | null, clientName?: string) => {
   const [members, setMembers] = useState<TeamMember[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  const sendInvitationEmail = async (email: string, role: TeamRole): Promise<boolean> => {
+    try {
+      const { error } = await supabase.functions.invoke('send-team-invitation', {
+        body: {
+          email,
+          role,
+          client_name: clientName,
+        }
+      });
+
+      if (error) {
+        console.error('Error sending invitation email:', error);
+        return false;
+      }
+      return true;
+    } catch (err) {
+      console.error('Error invoking send-team-invitation:', err);
+      return false;
+    }
+  };
 
   const fetchMembers = useCallback(async () => {
     if (!clientId) {
@@ -92,7 +113,15 @@ export const useTeam = (clientId: string | null) => {
 
       const typedData = data as TeamMember;
       setMembers(prev => [typedData, ...prev]);
-      toast.success('Invitación enviada correctamente');
+
+      // Send invitation email (don't block on failure)
+      const emailSent = await sendInvitationEmail(memberData.email, memberData.role);
+      if (emailSent) {
+        toast.success('Invitación enviada correctamente');
+      } else {
+        toast.success('Miembro agregado (el email no pudo enviarse)');
+      }
+
       return typedData;
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Error inviting member';
@@ -145,9 +174,20 @@ export const useTeam = (clientId: string | null) => {
   };
 
   const resendInvitation = async (memberId: string): Promise<boolean> => {
-    // In a real implementation, this would trigger an email
-    toast.success('Invitación reenviada');
-    return true;
+    const member = members.find(m => m.id === memberId);
+    if (!member) {
+      toast.error('Miembro no encontrado');
+      return false;
+    }
+
+    const emailSent = await sendInvitationEmail(member.email, member.role);
+    if (emailSent) {
+      toast.success('Invitación reenviada');
+      return true;
+    } else {
+      toast.error('No se pudo reenviar la invitación');
+      return false;
+    }
   };
 
   return {

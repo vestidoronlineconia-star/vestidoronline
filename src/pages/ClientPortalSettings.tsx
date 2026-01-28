@@ -856,7 +856,7 @@ const ClientPortalSettings = () => {
 
             {/* Team Tab */}
             <TabsContent value="team" className="space-y-6">
-              <TeamManager clientId={clientId || ''} />
+              <TeamManager clientId={clientId || ''} clientName={client?.name} />
             </TabsContent>
           </Tabs>
         </div>
