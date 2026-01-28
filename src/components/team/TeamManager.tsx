@@ -25,10 +25,11 @@ import { toast } from 'sonner';
 
 interface TeamManagerProps {
   clientId: string;
+  clientName?: string;
 }
 
-export const TeamManager = ({ clientId }: TeamManagerProps) => {
-  const { members, loading, inviteMember, updateMemberRole, removeMember, resendInvitation } = useTeam(clientId);
+export const TeamManager = ({ clientId, clientName }: TeamManagerProps) => {
+  const { members, loading, inviteMember, updateMemberRole, removeMember, resendInvitation } = useTeam(clientId, clientName);
   const { permissions } = usePermissions(clientId);
   const [isInviteOpen, setIsInviteOpen] = useState(false);
 
@@ -51,7 +52,6 @@ export const TeamManager = ({ clientId }: TeamManagerProps) => {
 
   const handleResend = async (memberId: string) => {
     await resendInvitation(memberId);
-    toast.success('Invitación reenviada');
   };
 
   const getRoleColor = (role: string) => {
