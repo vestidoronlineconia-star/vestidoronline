@@ -1,11 +1,11 @@
 import { useState } from "react";
-import { User, Shirt, Camera, ImagePlus } from "lucide-react";
+import { User, Shirt, Camera, ImagePlus, X } from "lucide-react";
 import { compressImage, CompressionResult } from "@/lib/imageCompression";
 import { CameraCapture } from "./CameraCapture";
 
 interface FileUploadProps {
   label: string;
-  onFileSelect: (data: { file: File; preview: string; compressed: CompressionResult }) => void;
+  onFileSelect: (data: { file: File; preview: string; compressed: CompressionResult } | null) => void;
   preview: string | null;
   id: string;
   icon: "user" | "shirt";
@@ -76,6 +76,18 @@ export const FileUpload = ({ label, onFileSelect, preview, id, icon, primaryColo
       >
         {preview ? (
           <>
+            {/* Remove image button */}
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onFileSelect(null);
+              }}
+              className="absolute top-2 right-2 z-10 w-8 h-8 rounded-full bg-black/50 hover:bg-black/70 flex items-center justify-center transition-colors"
+              aria-label="Quitar imagen"
+            >
+              <X className="w-4 h-4 text-white" />
+            </button>
             <img
               src={preview}
               alt="Preview"
