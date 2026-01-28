@@ -1,126 +1,100 @@
 
 
-## Plan: Implementar Captura de Cámara Real (Móvil + Escritorio)
+## Plan: Agregar Botón para Quitar Imagen
 
-### Problema Identificado
+### Problema Actual
 
-El atributo HTML `capture="user"` tiene una **limitación del navegador**:
-- **En móviles (iOS/Android):** Funciona correctamente y abre la cámara
-- **En escritorio:** Es **completamente ignorado** por el navegador y siempre abre el explorador de archivos
-
-Por eso, aunque el código está correcto, al probar desde un navegador de escritorio no se abre la cámara.
+Cuando el usuario ya tiene una imagen cargada:
+1. Solo puede ver "Cambiar" al hacer hover
+2. Al hacer clic solo puede seleccionar desde galería
+3. **No tiene opción de usar la cámara** para cambiar la foto
+4. **No puede quitar la imagen** para volver a ver los botones de Cámara/Galería
 
 ---
 
 ### Solución
 
-Crear un componente de cámara que use la **API MediaDevices** (`navigator.mediaDevices.getUserMedia()`), que sí funciona en navegadores de escritorio con webcam.
+Agregar un botón "X" (quitar imagen) en la esquina superior derecha de la imagen cargada. Al presionarlo:
+- Se elimina la imagen actual
+- Vuelven a aparecer los botones de "Cámara" y "Galería"
 
 ---
 
-### Cambios a Realizar
-
-#### 1. Crear nuevo componente `src/components/CameraCapture.tsx`
-
-Un modal/diálogo que:
-- Solicita permiso para acceder a la cámara
-- Muestra el video en vivo de la webcam
-- Tiene un botón para capturar la foto
-- Permite seleccionar cámara frontal o trasera (en móviles)
-
-#### 2. Modificar `src/components/FileUpload.tsx`
-
-- Importar el nuevo componente `CameraCapture`
-- Agregar un estado para controlar si se muestra el modal de cámara
-- Modificar el botón "Cámara" para:
-  - En **móviles**: Usar el input con `capture="user"` (comportamiento actual que funciona)
-  - En **escritorio**: Abrir el modal con la webcam
-
-#### 3. Detección de dispositivo
-
-Usar detección para elegir el método correcto:
-```typescript
-const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-```
-
----
-
-### Diseño del Modal de Cámara
+### Diseño Visual
 
 ```text
-┌────────────────────────────────────┐
-│              Tomar foto        [X] │
-├────────────────────────────────────┤
-│                                    │
-│   ┌────────────────────────────┐   │
-│   │                            │   │
-│   │      Video en vivo         │   │
-│   │      de la webcam          │   │
-│   │                            │   │
-│   └────────────────────────────┘   │
-│                                    │
-│         [ 📷 Capturar ]            │
-│                                    │
-│           [Cancelar]               │
-└────────────────────────────────────┘
+Imagen cargada:
+┌─────────────────────────────────┐
+│ [X] ◄── Botón para quitar      │
+│                                 │
+│         (imagen actual)         │
+│                                 │
+│                                 │
+│         [ Cambiar ]             │
+└─────────────────────────────────┘
+
+Después de quitar:
+┌─────────────────────────────────┐
+│                                 │
+│         [Ícono Usuario]         │
+│                                 │
+│    ┌─────────┐  ┌─────────┐     │
+│    │ 📷      │  │ 📁      │     │
+│    │ Cámara  │  │ Galería │     │
+│    └─────────┘  └─────────┘     │
+│                                 │
+└─────────────────────────────────┘
 ```
 
 ---
 
-### Archivos a Crear/Modificar
+### Cambios Técnicos
 
-| Archivo | Acción | Descripción |
-|---------|--------|-------------|
-| `src/components/CameraCapture.tsx` | Crear | Componente modal para capturar foto desde webcam |
-| `src/components/FileUpload.tsx` | Modificar | Integrar el nuevo componente de cámara |
+#### Modificar `src/components/FileUpload.tsx`
+
+1. **Importar ícono X**:
+   ```typescript
+   import { User, Shirt, Camera, ImagePlus, X } from "lucide-react";
+   ```
+
+2. **Agregar prop para limpiar la imagen**:
+   - El componente padre (`Index.tsx`) ya pasa `preview` y `onFileSelect`
+   - Para quitar la imagen, se llamará `onFileSelect` con `null`
+   - Se actualizará la interfaz `FileUploadProps` para aceptar `null`
+
+3. **Agregar botón X en la vista de preview**:
+   ```typescript
+   {preview && (
+     <button
+       type="button"
+       onClick={(e) => {
+         e.stopPropagation();
+         onFileSelect(null);
+       }}
+       className="absolute top-2 right-2 z-10 w-8 h-8 rounded-full bg-black/50 hover:bg-black/70 flex items-center justify-center transition-colors"
+     >
+       <X className="w-4 h-4 text-white" />
+     </button>
+   )}
+   ```
 
 ---
 
-### Detalles Técnicos
+### Archivos a Modificar
 
-**CameraCapture.tsx:**
-```typescript
-// Solicitar acceso a la cámara
-const stream = await navigator.mediaDevices.getUserMedia({
-  video: { facingMode: 'user' } // Cámara frontal
-});
-
-// Capturar frame del video
-const canvas = document.createElement('canvas');
-canvas.width = video.videoWidth;
-canvas.height = video.videoHeight;
-canvas.getContext('2d')?.drawImage(video, 0, 0);
-
-// Convertir a blob/file
-canvas.toBlob((blob) => {
-  const file = new File([blob], 'camera-photo.jpg', { type: 'image/jpeg' });
-  // Enviar al componente padre
-});
-```
-
-**FileUpload.tsx - Lógica de detección:**
-```typescript
-const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-
-// En el botón de cámara:
-onClick={() => {
-  if (isMobile) {
-    // Usar input con capture (funciona en móviles)
-    document.getElementById(`${id}-camera`)?.click();
-  } else {
-    // Abrir modal de webcam (para escritorio)
-    setShowCameraModal(true);
-  }
-}}
-```
+| Archivo | Cambio |
+|---------|--------|
+| `src/components/FileUpload.tsx` | Agregar botón X para quitar imagen, actualizar tipo de `onFileSelect` |
+| `src/pages/Index.tsx` | Manejar el caso cuando `onFileSelect` recibe `null` |
 
 ---
 
 ### Comportamiento Final
 
-| Dispositivo | Al presionar "Cámara" |
-|-------------|----------------------|
-| Móvil (iOS/Android) | Abre cámara nativa del dispositivo |
-| Escritorio con webcam | Abre modal con vista de la webcam |
-| Escritorio sin webcam | Muestra mensaje de error amigable |
+1. Usuario carga una imagen
+2. Ve la imagen con un botón "X" en la esquina superior derecha
+3. Al presionar "X":
+   - La imagen se elimina
+   - Vuelven a aparecer los botones "Cámara" y "Galería"
+4. El usuario puede ahora elegir tomar una foto con la cámara o subir desde galería
 
