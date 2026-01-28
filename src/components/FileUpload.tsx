@@ -1,4 +1,4 @@
-import { User, Shirt, Plus } from "lucide-react";
+import { User, Shirt, Camera, ImagePlus } from "lucide-react";
 import { compressImage, CompressionResult } from "@/lib/imageCompression";
 
 interface FileUploadProps {
@@ -48,10 +48,10 @@ export const FileUpload = ({ label, onFileSelect, preview, id, icon, primaryColo
 
   return (
     <div
-      className={`upload-zone relative w-full aspect-[4/5] md:aspect-square rounded-2xl flex flex-col items-center justify-center cursor-pointer group overflow-hidden ${
-        preview ? "border-none" : ""
+      className={`upload-zone relative w-full aspect-[4/5] md:aspect-square rounded-2xl flex flex-col items-center justify-center group overflow-hidden ${
+        preview ? "border-none cursor-pointer" : ""
       }`}
-      onClick={() => document.getElementById(id)?.click()}
+      onClick={() => preview && document.getElementById(id)?.click()}
       onDragOver={(e) => e.preventDefault()}
       onDrop={handleDrop}
     >
@@ -69,28 +69,63 @@ export const FileUpload = ({ label, onFileSelect, preview, id, icon, primaryColo
           </div>
         </>
       ) : (
-        <div className="text-center p-6 transition-all group-hover:scale-105">
+        <div className="text-center p-6 transition-all">
           <div className="relative inline-block mb-4">
-            <div className="w-16 h-16 rounded-full bg-muted/30 flex items-center justify-center group-hover:bg-primary/10 transition-colors">
-              <IconComponent className="w-8 h-8 text-muted-foreground group-hover:text-primary transition-colors" />
-            </div>
-            <div className="absolute -bottom-1 -right-1 bg-primary rounded-full p-1.5 animate-pulse shadow-lg">
-              <Plus className="w-3 h-3 text-primary-foreground" />
+            <div className="w-16 h-16 rounded-full bg-muted/30 flex items-center justify-center">
+              <IconComponent className="w-8 h-8 text-muted-foreground" />
             </div>
           </div>
           <span className="block text-sm text-foreground font-medium mb-1">
             {label}
           </span>
-          <span className="text-xs text-muted-foreground">
-            Clic o arrastra aquí
+          <span className="text-xs text-muted-foreground mb-4 block">
+            Arrastra aquí o usa los botones
           </span>
+          
+          {/* Camera and Gallery buttons */}
+          <div className="flex gap-2 mt-3">
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                document.getElementById(`${id}-camera`)?.click();
+              }}
+              className="flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg bg-primary/10 hover:bg-primary/20 transition-colors"
+            >
+              <Camera className="w-4 h-4 text-primary" />
+              <span className="text-xs font-medium text-primary">Cámara</span>
+            </button>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                document.getElementById(id)?.click();
+              }}
+              className="flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg bg-muted hover:bg-muted/80 transition-colors"
+            >
+              <ImagePlus className="w-4 h-4 text-muted-foreground" />
+              <span className="text-xs font-medium text-muted-foreground">Galería</span>
+            </button>
+          </div>
         </div>
       )}
+      
+      {/* Hidden input for gallery */}
       <input
         type="file"
         id={id}
         className="hidden"
         accept="image/*"
+        onChange={(e) => e.target.files?.[0] && processFile(e.target.files[0])}
+      />
+      
+      {/* Hidden input for camera (front-facing) */}
+      <input
+        type="file"
+        id={`${id}-camera`}
+        className="hidden"
+        accept="image/*"
+        capture="user"
         onChange={(e) => e.target.files?.[0] && processFile(e.target.files[0])}
       />
     </div>
