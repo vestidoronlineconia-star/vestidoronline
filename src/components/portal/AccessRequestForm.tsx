@@ -14,6 +14,17 @@ import {
 import { useAccessRequest } from '@/hooks/useAccessRequest';
 import { Loader2, Send, Clock, XCircle, CheckCircle } from 'lucide-react';
 
+const normalizeUrl = (url: string): string => {
+  const trimmed = url.trim();
+  if (!trimmed) return '';
+  
+  if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+    return trimmed;
+  }
+  
+  return `https://${trimmed}`;
+};
+
 export function AccessRequestForm() {
   const { request, loading, submitting, submitRequest } = useAccessRequest();
   const [open, setOpen] = useState(false);
@@ -30,7 +41,7 @@ export function AccessRequestForm() {
 
     const success = await submitRequest({
       company_name: formData.company_name.trim(),
-      website_url: formData.website_url.trim() || undefined,
+      website_url: normalizeUrl(formData.website_url) || undefined,
       message: formData.message.trim() || undefined,
     });
 
@@ -133,10 +144,10 @@ export function AccessRequestForm() {
             <Label htmlFor="website_url">Sitio Web</Label>
             <Input
               id="website_url"
-              type="url"
+              type="text"
               value={formData.website_url}
               onChange={(e) => setFormData({ ...formData, website_url: e.target.value })}
-              placeholder="https://mitienda.com"
+              placeholder="mitienda.com"
             />
           </div>
           <div className="space-y-2">
