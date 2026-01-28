@@ -1,64 +1,61 @@
 
+## Plan: Auto-completar "https://" en URL del Sitio Web
 
-## Plan: Arreglar Selector de Roles en Modal de Invitación
+### Problema Actual
 
-### Problema Identificado
-
-El componente `InviteMemberModal.tsx` tiene un **conflicto de eventos** que impide cambiar entre roles:
-
-1. El `RadioGroup` tiene `onValueChange` para manejar selecciones
-2. El `div` contenedor tiene `onClick={() => setRole(roleOption.id)}` - duplicando la lógica
-3. El `Label` usa `htmlFor={roleOption.id}` que también intenta activar el radio
-
-Estos tres manejadores de eventos están compitiendo, causando comportamiento inesperado.
+Cuando el usuario ingresa su sitio web en el formulario de solicitud de acceso:
+- El campo tiene `type="url"` que requiere que la URL incluya el protocolo (`https://`)
+- Si el usuario escribe solo `mitienda.com`, el navegador marca el campo como inválido
+- No hay normalización automática de la URL
 
 ---
 
 ### Solución
 
-Simplificar la estructura del componente eliminando manejadores de eventos redundantes:
-
-1. **Eliminar el `onClick` del div contenedor** - El RadioGroup ya maneja la selección
-2. **Usar `label` como contenedor clickeable** - En lugar de un `div` con `onClick`, convertir todo el contenedor en un `label` que apunte al radio
-3. **Mantener solo el `onValueChange` del RadioGroup** - Es el único handler necesario
+Crear una función que normalice la URL automáticamente antes de enviarla, agregando `https://` si el usuario no lo especifica.
 
 ---
 
-### Cambios en `src/components/team/InviteMemberModal.tsx`
+### Cambios en `src/components/portal/AccessRequestForm.tsx`
 
-**Antes (problemático):**
-```typescript
-<div
-  key={roleOption.id}
-  className="flex items-start space-x-3 p-3 rounded-lg border hover:bg-accent/50 cursor-pointer"
-  onClick={() => setRole(roleOption.id)}  // ❌ Conflicto
->
-  <RadioGroupItem value={roleOption.id} id={roleOption.id} className="mt-1" />
-  <div className="flex-1">
-    <Label htmlFor={roleOption.id} className="font-medium cursor-pointer">  // ❌ Otro conflicto
-      {roleOption.label}
-    </Label>
-    ...
-  </div>
-</div>
-```
+1. **Cambiar el tipo del input** de `url` a `text` para evitar validación estricta del navegador
 
-**Después (corregido):**
-```typescript
-<label
-  key={roleOption.id}
-  htmlFor={roleOption.id}
-  className="flex items-start space-x-3 p-3 rounded-lg border hover:bg-accent/50 cursor-pointer block"
->
-  <RadioGroupItem value={roleOption.id} id={roleOption.id} className="mt-1" />
-  <div className="flex-1">
-    <span className="font-medium">
-      {roleOption.label}
-    </span>
-    ...
-  </div>
-</label>
-```
+2. **Crear función de normalización**:
+   ```typescript
+   const normalizeUrl = (url: string): string => {
+     const trimmed = url.trim();
+     if (!trimmed) return '';
+     
+     // Si ya tiene protocolo, devolverla tal cual
+     if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+       return trimmed;
+     }
+     
+     // Si no tiene protocolo, agregar https://
+     return `https://${trimmed}`;
+   };
+   ```
+
+3. **Aplicar normalización en el submit**:
+   ```typescript
+   const handleSubmit = async (e: React.FormEvent) => {
+     e.preventDefault();
+     
+     if (!formData.company_name.trim()) return;
+
+     const success = await submitRequest({
+       company_name: formData.company_name.trim(),
+       website_url: normalizeUrl(formData.website_url) || undefined,  // ← Normalizar aquí
+       message: formData.message.trim() || undefined,
+     });
+     // ...
+   };
+   ```
+
+4. **Actualizar placeholder** para indicar que no es necesario el protocolo:
+   ```typescript
+   placeholder="mitienda.com"  // En lugar de "https://mitienda.com"
+   ```
 
 ---
 
@@ -66,14 +63,16 @@ Simplificar la estructura del componente eliminando manejadores de eventos redun
 
 | Archivo | Cambio |
 |---------|--------|
-| `src/components/team/InviteMemberModal.tsx` | Eliminar `onClick` del div, convertir a `label`, y eliminar el `Label` interno que causaba conflicto |
+| `src/components/portal/AccessRequestForm.tsx` | Agregar función `normalizeUrl`, cambiar tipo de input a `text`, actualizar placeholder |
 
 ---
 
 ### Resultado Esperado
 
-- Al hacer clic en cualquier parte de la opción (radio, texto, descripción), se selecciona correctamente ese rol
-- No hay conflictos de eventos
-- El indicador visual del radio se actualiza correctamente
-- El estado `role` se actualiza correctamente antes de enviar la invitación
-
+| El usuario escribe | Se envía como |
+|-------------------|---------------|
+| `mitienda.com` | `https://mitienda.com` |
+| `www.mitienda.com` | `https://www.mitienda.com` |
+| `https://mitienda.com` | `https://mitienda.com` |
+| `http://mitienda.com` | `http://mitienda.com` |
+| *(vacío)* | `undefined` |
