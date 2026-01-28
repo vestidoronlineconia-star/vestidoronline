@@ -1,78 +1,145 @@
 
-## Plan: Auto-completar "https://" en URL del Sitio Web
 
-### Problema Actual
+## Plan: Enviar Email de Invitación a Nuevos Miembros
 
-Cuando el usuario ingresa su sitio web en el formulario de solicitud de acceso:
-- El campo tiene `type="url"` que requiere que la URL incluya el protocolo (`https://`)
-- Si el usuario escribe solo `mitienda.com`, el navegador marca el campo como inválido
-- No hay normalización automática de la URL
+### Contexto Actual
+
+- La función `inviteMember` en `useTeam.tsx` solo inserta en la base de datos
+- Ya existe una edge function `send-access-request` que usa **Resend** para emails
+- El secret `RESEND_API_KEY` ya está configurado
 
 ---
 
 ### Solución
 
-Crear una función que normalice la URL automáticamente antes de enviarla, agregando `https://` si el usuario no lo especifica.
+Crear una nueva edge function `send-team-invitation` que envíe el email de bienvenida al usuario invitado.
 
 ---
 
-### Cambios en `src/components/portal/AccessRequestForm.tsx`
+### Archivos a Crear/Modificar
 
-1. **Cambiar el tipo del input** de `url` a `text` para evitar validación estricta del navegador
-
-2. **Crear función de normalización**:
-   ```typescript
-   const normalizeUrl = (url: string): string => {
-     const trimmed = url.trim();
-     if (!trimmed) return '';
-     
-     // Si ya tiene protocolo, devolverla tal cual
-     if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
-       return trimmed;
-     }
-     
-     // Si no tiene protocolo, agregar https://
-     return `https://${trimmed}`;
-   };
-   ```
-
-3. **Aplicar normalización en el submit**:
-   ```typescript
-   const handleSubmit = async (e: React.FormEvent) => {
-     e.preventDefault();
-     
-     if (!formData.company_name.trim()) return;
-
-     const success = await submitRequest({
-       company_name: formData.company_name.trim(),
-       website_url: normalizeUrl(formData.website_url) || undefined,  // ← Normalizar aquí
-       message: formData.message.trim() || undefined,
-     });
-     // ...
-   };
-   ```
-
-4. **Actualizar placeholder** para indicar que no es necesario el protocolo:
-   ```typescript
-   placeholder="mitienda.com"  // En lugar de "https://mitienda.com"
-   ```
+| Archivo | Acción | Descripción |
+|---------|--------|-------------|
+| `supabase/functions/send-team-invitation/index.ts` | **Crear** | Edge function que envía el email de invitación |
+| `src/hooks/useTeam.tsx` | **Modificar** | Llamar a la edge function después de insertar en DB |
 
 ---
 
-### Archivos a Modificar
+### Nueva Edge Function: `send-team-invitation/index.ts`
 
-| Archivo | Cambio |
-|---------|--------|
-| `src/components/portal/AccessRequestForm.tsx` | Agregar función `normalizeUrl`, cambiar tipo de input a `text`, actualizar placeholder |
+```typescript
+// Estructura del email que se enviará
+{
+  to: "usuario@ejemplo.com",
+  subject: "¡Felicidades! Tu acceso a Vestidor Online está listo",
+  html: `
+    <h1>¡Felicidades!</h1>
+    <p>Estuvimos analizando tu web y creemos que es posible 
+    una integración con nuestra tecnología innovadora para 
+    probar ropa de manera virtual.</p>
+    <p>Entrá al link para acceder a nuestro portal de cliente:</p>
+    <a href="https://vestidoronline.lovable.app/client">
+      Acceder al Portal
+    </a>
+  `
+}
+```
+
+**Datos que recibirá:**
+- `email`: Email del usuario invitado
+- `role`: Rol asignado (admin/editor/viewer)
+- `client_name`: Nombre del cliente/empresa que invita
 
 ---
 
-### Resultado Esperado
+### Cambios en `useTeam.tsx`
 
-| El usuario escribe | Se envía como |
-|-------------------|---------------|
-| `mitienda.com` | `https://mitienda.com` |
-| `www.mitienda.com` | `https://www.mitienda.com` |
-| `https://mitienda.com` | `https://mitienda.com` |
-| `http://mitienda.com` | `http://mitienda.com` |
-| *(vacío)* | `undefined` |
+```typescript
+const inviteMember = async (memberData: InviteMemberData): Promise<TeamMember | null> => {
+  // ... código existente de inserción ...
+  
+  // Después de insertar exitosamente:
+  try {
+    await supabase.functions.invoke('send-team-invitation', {
+      body: {
+        email: memberData.email,
+        role: memberData.role,
+        client_name: clientName, // Necesitamos obtener el nombre del cliente
+      }
+    });
+  } catch (emailError) {
+    console.error('Error sending invitation email:', emailError);
+    // No fallar la invitación si el email falla
+  }
+  
+  return typedData;
+};
+```
+
+---
+
+### Diseño del Email
+
+**Asunto:** `¡Felicidades! Tu acceso a Vestidor Online está listo`
+
+**Contenido:**
+```text
+┌─────────────────────────────────────────────┐
+│                                             │
+│  [Logo Vestidor Online]                     │
+│                                             │
+│  ¡Felicidades!                              │
+│                                             │
+│  Estuvimos analizando tu web y creemos      │
+│  que es posible una integración con         │
+│  nuestra tecnología innovadora para         │
+│  probar ropa de manera virtual.             │
+│                                             │
+│  Entrá al link para acceder a nuestro       │
+│  portal de cliente:                         │
+│                                             │
+│  ┌─────────────────────────────────────┐    │
+│  │     Acceder al Portal de Cliente    │    │
+│  └─────────────────────────────────────┘    │
+│                                             │
+│  ─────────────────────────────────────────  │
+│  Tu rol: Administrador                      │
+│  ─────────────────────────────────────────  │
+│                                             │
+│  Vestidor Online - Tecnología de            │
+│  Prueba Virtual                             │
+│                                             │
+└─────────────────────────────────────────────┘
+```
+
+---
+
+### Flujo Completo
+
+```text
+Usuario Admin                Edge Function           Base de Datos        Usuario Invitado
+     │                            │                       │                     │
+     │  Invitar miembro           │                       │                     │
+     │ ──────────────────────────────────────────────────>│                     │
+     │                            │                       │                     │
+     │                            │   INSERT team_member  │                     │
+     │                            │ ──────────────────────>                     │
+     │                            │                       │                     │
+     │  Invocar send-team-invitation                      │                     │
+     │ ────────────────────────────>                      │                     │
+     │                            │                       │                     │
+     │                            │         Enviar email con Resend             │
+     │                            │ ─────────────────────────────────────────────>
+     │                            │                       │                     │
+     │  Toast: "Invitación enviada"                       │     Recibe email    │
+     │ <──────────────────────────│                       │                     │
+```
+
+---
+
+### Consideraciones
+
+1. **El email no bloquea la invitación** - Si falla el envío, la invitación sigue existiendo en la DB
+2. **Función `resendInvitation`** - También se actualizará para llamar a la edge function
+3. **Dominio de Resend** - Actualmente usa `onboarding@resend.dev` (dominio de prueba de Resend)
+
