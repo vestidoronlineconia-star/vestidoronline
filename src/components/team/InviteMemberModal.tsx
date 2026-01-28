@@ -71,16 +71,16 @@ export const InviteMemberModal = ({ open, onClose, onInvite }: InviteMemberModal
               onValueChange={(value) => setRole(value as TeamRole)}
             >
               {invitableRoles.map((roleOption) => (
-                <div
+                <label
                   key={roleOption.id}
-                  className="flex items-start space-x-3 p-3 rounded-lg border hover:bg-accent/50 cursor-pointer"
-                  onClick={() => setRole(roleOption.id)}
+                  htmlFor={roleOption.id}
+                  className="flex items-start space-x-3 p-3 rounded-lg border hover:bg-accent/50 cursor-pointer block"
                 >
                   <RadioGroupItem value={roleOption.id} id={roleOption.id} className="mt-1" />
                   <div className="flex-1">
-                    <Label htmlFor={roleOption.id} className="font-medium cursor-pointer">
+                    <span className="font-medium">
                       {roleOption.label}
-                    </Label>
+                    </span>
                     <p className="text-sm text-muted-foreground">
                       {roleOption.description}
                     </p>
@@ -95,7 +95,7 @@ export const InviteMemberModal = ({ open, onClose, onInvite }: InviteMemberModal
                       ))}
                     </div>
                   </div>
-                </div>
+                </label>
               ))}
             </RadioGroup>
           </div>
