@@ -1,122 +1,126 @@
 
-## Plan: Agregar Opción de Cámara al Subir Foto
 
-### Problema Actual
-Cuando el usuario quiere probarse una prenda y necesita subir su foto, el componente `FileUpload` solo permite seleccionar archivos de la galería. No hay un botón dedicado para abrir la cámara directamente, lo cual es importante especialmente en dispositivos móviles.
+## Plan: Implementar Captura de Cámara Real (Móvil + Escritorio)
 
----
+### Problema Identificado
 
-### Solución Propuesta
+El atributo HTML `capture="user"` tiene una **limitación del navegador**:
+- **En móviles (iOS/Android):** Funciona correctamente y abre la cámara
+- **En escritorio:** Es **completamente ignorado** por el navegador y siempre abre el explorador de archivos
 
-Modificar el componente `FileUpload` para mostrar dos opciones cuando el usuario no tiene una foto cargada:
-1. **Abrir Cámara** - Captura directa desde la cámara del dispositivo
-2. **Subir Foto** - Seleccionar desde la galería (comportamiento actual)
+Por eso, aunque el código está correcto, al probar desde un navegador de escritorio no se abre la cámara.
 
 ---
 
-### Diseño de UI
+### Solución
+
+Crear un componente de cámara que use la **API MediaDevices** (`navigator.mediaDevices.getUserMedia()`), que sí funciona en navegadores de escritorio con webcam.
+
+---
+
+### Cambios a Realizar
+
+#### 1. Crear nuevo componente `src/components/CameraCapture.tsx`
+
+Un modal/diálogo que:
+- Solicita permiso para acceder a la cámara
+- Muestra el video en vivo de la webcam
+- Tiene un botón para capturar la foto
+- Permite seleccionar cámara frontal o trasera (en móviles)
+
+#### 2. Modificar `src/components/FileUpload.tsx`
+
+- Importar el nuevo componente `CameraCapture`
+- Agregar un estado para controlar si se muestra el modal de cámara
+- Modificar el botón "Cámara" para:
+  - En **móviles**: Usar el input con `capture="user"` (comportamiento actual que funciona)
+  - En **escritorio**: Abrir el modal con la webcam
+
+#### 3. Detección de dispositivo
+
+Usar detección para elegir el método correcto:
+```typescript
+const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+```
+
+---
+
+### Diseño del Modal de Cámara
 
 ```text
-┌─────────────────────────────────┐
-│                                 │
-│         [Ícono Usuario]         │
-│                                 │
-│    ┌─────────┐  ┌─────────┐     │
-│    │ 📷      │  │ 📁      │     │
-│    │ Cámara  │  │ Galería │     │
-│    └─────────┘  └─────────┘     │
-│                                 │
-│      Clic o arrastra aquí       │
-└─────────────────────────────────┘
+┌────────────────────────────────────┐
+│              Tomar foto        [X] │
+├────────────────────────────────────┤
+│                                    │
+│   ┌────────────────────────────┐   │
+│   │                            │   │
+│   │      Video en vivo         │   │
+│   │      de la webcam          │   │
+│   │                            │   │
+│   └────────────────────────────┘   │
+│                                    │
+│         [ 📷 Capturar ]            │
+│                                    │
+│           [Cancelar]               │
+└────────────────────────────────────┘
 ```
 
 ---
 
-### Cambios Técnicos
+### Archivos a Crear/Modificar
 
-#### 1. Modificar `src/components/FileUpload.tsx`
+| Archivo | Acción | Descripción |
+|---------|--------|-------------|
+| `src/components/CameraCapture.tsx` | Crear | Componente modal para capturar foto desde webcam |
+| `src/components/FileUpload.tsx` | Modificar | Integrar el nuevo componente de cámara |
 
-**Agregar nuevo input para cámara:**
-- Crear un segundo `<input type="file">` con el atributo `capture="user"` que fuerza la apertura de la cámara frontal
-- Agregar botones separados para "Cámara" y "Galería"
+---
 
-**Importar ícono de cámara:**
+### Detalles Técnicos
+
+**CameraCapture.tsx:**
 ```typescript
-import { User, Shirt, Plus, Camera, ImagePlus } from "lucide-react";
+// Solicitar acceso a la cámara
+const stream = await navigator.mediaDevices.getUserMedia({
+  video: { facingMode: 'user' } // Cámara frontal
+});
+
+// Capturar frame del video
+const canvas = document.createElement('canvas');
+canvas.width = video.videoWidth;
+canvas.height = video.videoHeight;
+canvas.getContext('2d')?.drawImage(video, 0, 0);
+
+// Convertir a blob/file
+canvas.toBlob((blob) => {
+  const file = new File([blob], 'camera-photo.jpg', { type: 'image/jpeg' });
+  // Enviar al componente padre
+});
 ```
 
-**Estructura de la UI:**
-- Mantener el área de drop para arrastrar archivos
-- Reemplazar el botón único por dos botones:
-  - Botón "Cámara" → activa `<input capture="user">`
-  - Botón "Galería" → activa `<input>` actual
-
-**Código del input de cámara:**
+**FileUpload.tsx - Lógica de detección:**
 ```typescript
-<input
-  type="file"
-  id={`${id}-camera`}
-  className="hidden"
-  accept="image/*"
-  capture="user"
-  onChange={(e) => e.target.files?.[0] && processFile(e.target.files[0])}
-/>
-```
+const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
 
-**Nuevos botones en la UI:**
-```typescript
-<div className="flex gap-2 mt-3">
-  <button
-    type="button"
-    onClick={(e) => {
-      e.stopPropagation();
-      document.getElementById(`${id}-camera`)?.click();
-    }}
-    className="flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-primary/10 hover:bg-primary/20 transition-colors"
-  >
-    <Camera className="w-4 h-4" />
-    <span className="text-xs font-medium">Cámara</span>
-  </button>
-  <button
-    type="button"
-    onClick={(e) => {
-      e.stopPropagation();
-      document.getElementById(id)?.click();
-    }}
-    className="flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-muted hover:bg-muted/80 transition-colors"
-  >
-    <ImagePlus className="w-4 h-4" />
-    <span className="text-xs font-medium">Galería</span>
-  </button>
-</div>
+// En el botón de cámara:
+onClick={() => {
+  if (isMobile) {
+    // Usar input con capture (funciona en móviles)
+    document.getElementById(`${id}-camera`)?.click();
+  } else {
+    // Abrir modal de webcam (para escritorio)
+    setShowCameraModal(true);
+  }
+}}
 ```
 
 ---
 
-### Archivos a Modificar
+### Comportamiento Final
 
-| Archivo | Cambio |
-|---------|--------|
-| `src/components/FileUpload.tsx` | Agregar input con `capture="user"`, botones de Cámara y Galería |
+| Dispositivo | Al presionar "Cámara" |
+|-------------|----------------------|
+| Móvil (iOS/Android) | Abre cámara nativa del dispositivo |
+| Escritorio con webcam | Abre modal con vista de la webcam |
+| Escritorio sin webcam | Muestra mensaje de error amigable |
 
----
-
-### Comportamiento Esperado
-
-**En móviles:**
-- Botón "Cámara" → Abre directamente la cámara frontal del dispositivo
-- Botón "Galería" → Abre el selector de fotos del dispositivo
-
-**En escritorio:**
-- Botón "Cámara" → Si hay webcam, puede abrirla (depende del navegador)
-- Botón "Galería" → Abre el explorador de archivos
-- Arrastrar y soltar → Sigue funcionando igual
-
----
-
-### Notas Técnicas
-
-- El atributo `capture="user"` indica cámara frontal (ideal para selfies)
-- El atributo `capture="environment"` sería para cámara trasera
-- La compatibilidad con `capture` es excelente en móviles modernos (iOS Safari, Chrome Android)
-- En escritorio, el comportamiento depende del navegador y si hay cámara disponible
