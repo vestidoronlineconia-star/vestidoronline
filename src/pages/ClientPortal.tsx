@@ -97,7 +97,7 @@ const ClientPortal = () => {
           role,
           embed_clients (*)
         `)
-        .or(`user_id.eq.${user.id},email.ilike.${userEmail}`)
+        .or(`user_id.eq.${user.id},email.eq.${userEmail}`)
         .not('accepted_at', 'is', null);
 
       if (teamError) throw teamError;

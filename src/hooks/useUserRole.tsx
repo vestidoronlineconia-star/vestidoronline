@@ -42,7 +42,7 @@ export const useUserRole = (): UserRoleState => {
         const { data: memberships, error: membershipError } = await supabase
           .from('client_team_members')
           .select('id')
-          .or(`user_id.eq.${user.id},email.ilike.${userEmail}`)
+          .or(`user_id.eq.${user.id},email.eq.${userEmail}`)
           .not('accepted_at', 'is', null)
           .limit(1);
 
