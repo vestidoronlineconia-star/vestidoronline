@@ -88,7 +88,8 @@ const ClientPortal = () => {
 
       if (ownError) throw ownError;
 
-      // 2. Fetch clients where user is a team member
+      // 2. Fetch clients where user is a team member (by user_id OR email)
+      const userEmail = user.email?.toLowerCase() || '';
       const { data: teamMemberships, error: teamError } = await supabase
         .from('client_team_members')
         .select(`
@@ -96,7 +97,7 @@ const ClientPortal = () => {
           role,
           embed_clients (*)
         `)
-        .eq('user_id', user.id)
+        .or(`user_id.eq.${user.id},email.ilike.${userEmail}`)
         .not('accepted_at', 'is', null);
 
       if (teamError) throw teamError;
