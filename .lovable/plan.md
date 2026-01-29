@@ -1,145 +1,178 @@
 
+## Plan: Autorización de Emails desde Base de Datos
 
-## Plan: Enviar Email de Invitación a Nuevos Miembros
+### Objetivo
+Permitirte agregar emails directamente en la base de datos (`client_team_members`) para autorizar acceso a clientes específicos, sin que el usuario tenga que solicitar acceso.
 
-### Contexto Actual
+---
 
-- La función `inviteMember` en `useTeam.tsx` solo inserta en la base de datos
-- Ya existe una edge function `send-access-request` que usa **Resend** para emails
-- El secret `RESEND_API_KEY` ya está configurado
+### Problema Actual
+
+El código actual tiene **dos limitaciones**:
+
+1. **Búsqueda solo por `user_id`**: La query busca membresías donde `user_id = auth.uid()`, pero cuando agregas un email desde la DB, el `user_id` es `null` (el usuario aún no existe)
+
+2. **Requiere `accepted_at` no nulo**: La query filtra con `.not('accepted_at', 'is', null)`, pero las invitaciones nuevas tienen `accepted_at = null`
+
+```typescript
+// Código actual problemático
+.eq('user_id', user.id)           // ❌ Falla si user_id es null
+.not('accepted_at', 'is', null);  // ❌ Falla si accepted_at es null
+```
 
 ---
 
 ### Solución
 
-Crear una nueva edge function `send-team-invitation` que envíe el email de bienvenida al usuario invitado.
+| Archivo | Cambio |
+|---------|--------|
+| `src/pages/ClientPortal.tsx` | Buscar también por **email** cuando `user_id` es null |
+| `src/hooks/useUserRole.tsx` | Asignar automáticamente rol `client` cuando tiene membresías |
+| Nueva migración SQL | Crear trigger para vincular `user_id` cuando el usuario se registra |
 
 ---
 
-### Archivos a Crear/Modificar
+### Flujo Propuesto
 
-| Archivo | Acción | Descripción |
-|---------|--------|-------------|
-| `supabase/functions/send-team-invitation/index.ts` | **Crear** | Edge function que envía el email de invitación |
-| `src/hooks/useTeam.tsx` | **Modificar** | Llamar a la edge function después de insertar en DB |
-
----
-
-### Nueva Edge Function: `send-team-invitation/index.ts`
-
-```typescript
-// Estructura del email que se enviará
-{
-  to: "usuario@ejemplo.com",
-  subject: "¡Felicidades! Tu acceso a Vestidor Online está listo",
-  html: `
-    <h1>¡Felicidades!</h1>
-    <p>Estuvimos analizando tu web y creemos que es posible 
-    una integración con nuestra tecnología innovadora para 
-    probar ropa de manera virtual.</p>
-    <p>Entrá al link para acceder a nuestro portal de cliente:</p>
-    <a href="https://vestidoronline.lovable.app/client">
-      Acceder al Portal
-    </a>
-  `
-}
+```text
+1. ADMIN agrega registro en DB
+   ┌─────────────────────────────────────────────────┐
+   │ INSERT INTO client_team_members                 │
+   │ (client_id, email, role, accepted_at)           │
+   │ VALUES ('uuid-cliente', 'user@email.com',       │
+   │         'editor', NOW())                        │
+   └─────────────────────────────────────────────────┘
+                        │
+                        ▼
+2. Usuario se REGISTRA con ese email
+   ┌─────────────────────────────────────────────────┐
+   │ Trigger automático:                             │
+   │ UPDATE client_team_members                      │
+   │ SET user_id = NEW.id                            │
+   │ WHERE email = NEW.email AND user_id IS NULL     │
+   └─────────────────────────────────────────────────┘
+                        │
+                        ▼
+3. Usuario ENTRA al portal
+   ┌─────────────────────────────────────────────────┐
+   │ ClientPortal busca:                             │
+   │ - Por user_id (dueño o miembro)                 │
+   │ - Por email si user_id aún no está vinculado    │
+   └─────────────────────────────────────────────────┘
+                        │
+                        ▼
+4. Usuario VE el cliente asignado
 ```
 
-**Datos que recibirá:**
-- `email`: Email del usuario invitado
-- `role`: Rol asignado (admin/editor/viewer)
-- `client_name`: Nombre del cliente/empresa que invita
-
 ---
 
-### Cambios en `useTeam.tsx`
+### Cambios Técnicos
+
+#### 1. Trigger para Vincular user_id al Registrarse
+
+```sql
+-- Cuando un usuario se registra, vincular membresías pendientes
+CREATE OR REPLACE FUNCTION link_team_memberships_on_signup()
+RETURNS TRIGGER AS $$
+BEGIN
+  -- Vincular membresías existentes por email
+  UPDATE public.client_team_members
+  SET user_id = NEW.id
+  WHERE email = NEW.email AND user_id IS NULL;
+  
+  -- Asignar rol 'client' si tiene membresías
+  IF EXISTS (SELECT 1 FROM public.client_team_members WHERE user_id = NEW.id) THEN
+    INSERT INTO public.user_roles (user_id, role)
+    VALUES (NEW.id, 'client')
+    ON CONFLICT (user_id, role) DO NOTHING;
+  END IF;
+  
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+CREATE TRIGGER on_auth_user_created_link_memberships
+  AFTER INSERT ON auth.users
+  FOR EACH ROW EXECUTE FUNCTION link_team_memberships_on_signup();
+```
+
+#### 2. Modificar ClientPortal.tsx
 
 ```typescript
-const inviteMember = async (memberData: InviteMemberData): Promise<TeamMember | null> => {
-  // ... código existente de inserción ...
+const loadClients = async () => {
+  // 1. Clientes donde es dueño (sin cambios)
+  const { data: ownClients } = await supabase
+    .from('embed_clients')
+    .select('*')
+    .eq('user_id', user.id);
+
+  // 2. Clientes donde es miembro (por user_id O email)
+  const { data: teamMemberships } = await supabase
+    .from('client_team_members')
+    .select('client_id, role, embed_clients (*)')
+    .or(`user_id.eq.${user.id},email.eq.${user.email}`)
+    .not('accepted_at', 'is', null);  // Solo si ya está aceptado
+
+  // ... resto igual
+};
+```
+
+#### 3. Modificar useUserRole.tsx
+
+```typescript
+const fetchRoles = async () => {
+  // Roles explícitos
+  const { data: rolesData } = await supabase
+    .from('user_roles')
+    .select('role')
+    .eq('user_id', user.id);
+
+  // Si tiene membresías, también es cliente
+  const { data: memberships } = await supabase
+    .from('client_team_members')
+    .select('id')
+    .or(`user_id.eq.${user.id},email.eq.${user.email}`)
+    .not('accepted_at', 'is', null)
+    .limit(1);
+
+  let userRoles = (rolesData || []).map(r => r.role);
   
-  // Después de insertar exitosamente:
-  try {
-    await supabase.functions.invoke('send-team-invitation', {
-      body: {
-        email: memberData.email,
-        role: memberData.role,
-        client_name: clientName, // Necesitamos obtener el nombre del cliente
-      }
-    });
-  } catch (emailError) {
-    console.error('Error sending invitation email:', emailError);
-    // No fallar la invitación si el email falla
+  if (memberships?.length && !userRoles.includes('client')) {
+    userRoles.push('client');
   }
   
-  return typedData;
+  setRoles(userRoles);
 };
 ```
 
 ---
 
-### Diseño del Email
+### Cómo Autorizar desde la Base de Datos
 
-**Asunto:** `¡Felicidades! Tu acceso a Vestidor Online está listo`
+Una vez implementado, podrás autorizar usuarios así:
 
-**Contenido:**
-```text
-┌─────────────────────────────────────────────┐
-│                                             │
-│  [Logo Vestidor Online]                     │
-│                                             │
-│  ¡Felicidades!                              │
-│                                             │
-│  Estuvimos analizando tu web y creemos      │
-│  que es posible una integración con         │
-│  nuestra tecnología innovadora para         │
-│  probar ropa de manera virtual.             │
-│                                             │
-│  Entrá al link para acceder a nuestro       │
-│  portal de cliente:                         │
-│                                             │
-│  ┌─────────────────────────────────────┐    │
-│  │     Acceder al Portal de Cliente    │    │
-│  └─────────────────────────────────────┘    │
-│                                             │
-│  ─────────────────────────────────────────  │
-│  Tu rol: Administrador                      │
-│  ─────────────────────────────────────────  │
-│                                             │
-│  Vestidor Online - Tecnología de            │
-│  Prueba Virtual                             │
-│                                             │
-└─────────────────────────────────────────────┘
+```sql
+-- Autorizar email a un cliente específico
+INSERT INTO client_team_members (client_id, email, role, accepted_at)
+VALUES (
+  'uuid-del-cliente',      -- ID del cliente
+  'usuario@email.com',     -- Email a autorizar
+  'editor',                -- Rol: owner/admin/editor/viewer
+  NOW()                    -- accepted_at = NOW() para acceso inmediato
+);
 ```
+
+Si quieres que el usuario aún deba "aceptar", deja `accepted_at` como `NULL` y el email de invitación lo guiará.
 
 ---
 
-### Flujo Completo
+### Resumen
 
-```text
-Usuario Admin                Edge Function           Base de Datos        Usuario Invitado
-     │                            │                       │                     │
-     │  Invitar miembro           │                       │                     │
-     │ ──────────────────────────────────────────────────>│                     │
-     │                            │                       │                     │
-     │                            │   INSERT team_member  │                     │
-     │                            │ ──────────────────────>                     │
-     │                            │                       │                     │
-     │  Invocar send-team-invitation                      │                     │
-     │ ────────────────────────────>                      │                     │
-     │                            │                       │                     │
-     │                            │         Enviar email con Resend             │
-     │                            │ ─────────────────────────────────────────────>
-     │                            │                       │                     │
-     │  Toast: "Invitación enviada"                       │     Recibe email    │
-     │ <──────────────────────────│                       │                     │
-```
+| Paso | Descripción |
+|------|-------------|
+| 1 | Crear trigger en `auth.users` para vincular membresías por email |
+| 2 | Modificar `ClientPortal.tsx` para buscar por email además de user_id |
+| 3 | Modificar `useUserRole.tsx` para detectar rol `client` por membresías |
+| 4 | Actualizar RLS policies para permitir acceso por email |
 
----
-
-### Consideraciones
-
-1. **El email no bloquea la invitación** - Si falla el envío, la invitación sigue existiendo en la DB
-2. **Función `resendInvitation`** - También se actualizará para llamar a la edge function
-3. **Dominio de Resend** - Actualmente usa `onboarding@resend.dev` (dominio de prueba de Resend)
-
+Esto te permitirá autorizar cualquier email a cualquier cliente directamente desde la base de datos.
