@@ -724,6 +724,10 @@ export type Database = {
         Args: { p_user_email: string; p_user_id: string }
         Returns: boolean
       }
+      user_is_team_member_of_client: {
+        Args: { p_client_id: string; p_user_email: string; p_user_id: string }
+        Returns: boolean
+      }
     }
     Enums: {
       app_role: "admin" | "client" | "user"
