@@ -1,178 +1,131 @@
 
-## Plan: Autorización de Emails desde Base de Datos
+# Plan: Control de Acceso para Miembros de Equipo
 
-### Objetivo
-Permitirte agregar emails directamente en la base de datos (`client_team_members`) para autorizar acceso a clientes específicos, sin que el usuario tenga que solicitar acceso.
+## Resumen del Problema
 
----
+Se detectaron **dos problemas principales**:
 
-### Problema Actual
-
-El código actual tiene **dos limitaciones**:
-
-1. **Búsqueda solo por `user_id`**: La query busca membresías donde `user_id = auth.uid()`, pero cuando agregas un email desde la DB, el `user_id` es `null` (el usuario aún no existe)
-
-2. **Requiere `accepted_at` no nulo**: La query filtra con `.not('accepted_at', 'is', null)`, pero las invitaciones nuevas tienen `accepted_at = null`
-
-```typescript
-// Código actual problemático
-.eq('user_id', user.id)           // ❌ Falla si user_id es null
-.not('accepted_at', 'is', null);  // ❌ Falla si accepted_at es null
-```
+1. **El cliente "moonlight" no aparece** para el usuario invitado (`santy2380.ss@gmail.com`) debido a políticas RLS mal configuradas
+2. **Puede crear nuevos clientes** cuando solo debería poder configurar el que le asignaste
 
 ---
 
-### Solución
+## Análisis Técnico
 
-| Archivo | Cambio |
-|---------|--------|
-| `src/pages/ClientPortal.tsx` | Buscar también por **email** cuando `user_id` es null |
-| `src/hooks/useUserRole.tsx` | Asignar automáticamente rol `client` cuando tiene membresías |
-| Nueva migración SQL | Crear trigger para vincular `user_id` cuando el usuario se registra |
+### Problema 1: RLS de `embed_clients` bloquea a miembros de equipo
 
----
-
-### Flujo Propuesto
+Las políticas actuales de SELECT en `embed_clients` son:
 
 ```text
-1. ADMIN agrega registro en DB
-   ┌─────────────────────────────────────────────────┐
-   │ INSERT INTO client_team_members                 │
-   │ (client_id, email, role, accepted_at)           │
-   │ VALUES ('uuid-cliente', 'user@email.com',       │
-   │         'editor', NOW())                        │
-   └─────────────────────────────────────────────────┘
-                        │
-                        ▼
-2. Usuario se REGISTRA con ese email
-   ┌─────────────────────────────────────────────────┐
-   │ Trigger automático:                             │
-   │ UPDATE client_team_members                      │
-   │ SET user_id = NEW.id                            │
-   │ WHERE email = NEW.email AND user_id IS NULL     │
-   └─────────────────────────────────────────────────┘
-                        │
-                        ▼
-3. Usuario ENTRA al portal
-   ┌─────────────────────────────────────────────────┐
-   │ ClientPortal busca:                             │
-   │ - Por user_id (dueño o miembro)                 │
-   │ - Por email si user_id aún no está vinculado    │
-   └─────────────────────────────────────────────────┘
-                        │
-                        ▼
-4. Usuario VE el cliente asignado
+Policy 1: "Users can view their own embed clients"
+  RESTRICTIVE - USING: auth.uid() = user_id
+
+Policy 2: "Public can view limited columns of active clients"  
+  RESTRICTIVE - USING: is_active = true
 ```
+
+**El problema**: Ambas son `RESTRICTIVE` (Permissive: No). Cuando múltiples políticas RESTRICTIVE existen, **TODAS** deben cumplirse. Para ver un cliente:
+- Debe ser el propietario (`user_id = auth.uid()`) **Y**
+- El cliente debe estar activo (`is_active = true`)
+
+Un miembro de equipo **no** es el propietario, por lo que la primera condición falla y no puede ver nada.
+
+### Problema 2: Lógica de permisos permite crear clientes
+
+En `useUserRole.tsx` línea 75:
+```typescript
+const canCreateClients = isAdmin || isClient;
+```
+
+Cualquier usuario con rol `client` (incluyendo miembros de equipo) puede crear clientes nuevos. Esto no es lo que deseas.
 
 ---
 
-### Cambios Técnicos
+## Solución Propuesta
 
-#### 1. Trigger para Vincular user_id al Registrarse
+### Paso 1: Corregir política RLS de `embed_clients`
 
-```sql
--- Cuando un usuario se registra, vincular membresías pendientes
-CREATE OR REPLACE FUNCTION link_team_memberships_on_signup()
-RETURNS TRIGGER AS $$
-BEGIN
-  -- Vincular membresías existentes por email
-  UPDATE public.client_team_members
-  SET user_id = NEW.id
-  WHERE email = NEW.email AND user_id IS NULL;
-  
-  -- Asignar rol 'client' si tiene membresías
-  IF EXISTS (SELECT 1 FROM public.client_team_members WHERE user_id = NEW.id) THEN
-    INSERT INTO public.user_roles (user_id, role)
-    VALUES (NEW.id, 'client')
-    ON CONFLICT (user_id, role) DO NOTHING;
-  END IF;
-  
-  RETURN NEW;
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
-
-CREATE TRIGGER on_auth_user_created_link_memberships
-  AFTER INSERT ON auth.users
-  FOR EACH ROW EXECUTE FUNCTION link_team_memberships_on_signup();
-```
-
-#### 2. Modificar ClientPortal.tsx
-
-```typescript
-const loadClients = async () => {
-  // 1. Clientes donde es dueño (sin cambios)
-  const { data: ownClients } = await supabase
-    .from('embed_clients')
-    .select('*')
-    .eq('user_id', user.id);
-
-  // 2. Clientes donde es miembro (por user_id O email)
-  const { data: teamMemberships } = await supabase
-    .from('client_team_members')
-    .select('client_id, role, embed_clients (*)')
-    .or(`user_id.eq.${user.id},email.eq.${user.email}`)
-    .not('accepted_at', 'is', null);  // Solo si ya está aceptado
-
-  // ... resto igual
-};
-```
-
-#### 3. Modificar useUserRole.tsx
-
-```typescript
-const fetchRoles = async () => {
-  // Roles explícitos
-  const { data: rolesData } = await supabase
-    .from('user_roles')
-    .select('role')
-    .eq('user_id', user.id);
-
-  // Si tiene membresías, también es cliente
-  const { data: memberships } = await supabase
-    .from('client_team_members')
-    .select('id')
-    .or(`user_id.eq.${user.id},email.eq.${user.email}`)
-    .not('accepted_at', 'is', null)
-    .limit(1);
-
-  let userRoles = (rolesData || []).map(r => r.role);
-  
-  if (memberships?.length && !userRoles.includes('client')) {
-    userRoles.push('client');
-  }
-  
-  setRoles(userRoles);
-};
-```
-
----
-
-### Cómo Autorizar desde la Base de Datos
-
-Una vez implementado, podrás autorizar usuarios así:
+Agregar una nueva política PERMISSIVE que permita a los miembros de equipo ver los clientes a los que pertenecen:
 
 ```sql
--- Autorizar email a un cliente específico
-INSERT INTO client_team_members (client_id, email, role, accepted_at)
-VALUES (
-  'uuid-del-cliente',      -- ID del cliente
-  'usuario@email.com',     -- Email a autorizar
-  'editor',                -- Rol: owner/admin/editor/viewer
-  NOW()                    -- accepted_at = NOW() para acceso inmediato
+CREATE POLICY "Team members can view their assigned clients"
+ON embed_clients FOR SELECT
+TO authenticated
+USING (
+  EXISTS (
+    SELECT 1 FROM client_team_members
+    WHERE client_team_members.client_id = embed_clients.id
+      AND (
+        client_team_members.user_id = auth.uid() 
+        OR LOWER(client_team_members.email) = LOWER(auth.email())
+      )
+      AND client_team_members.accepted_at IS NOT NULL
+  )
 );
 ```
 
-Si quieres que el usuario aún deba "aceptar", deja `accepted_at` como `NULL` y el email de invitación lo guiará.
+### Paso 2: Diferenciar entre propietarios y miembros de equipo
+
+Modificar `useUserRole.tsx` para distinguir entre:
+- **`isOwner`**: Tiene clientes propios (puede crear más)
+- **`isTeamMember`**: Solo tiene membresías en clientes de otros (no puede crear)
+
+```typescript
+// Nuevo estado del hook
+interface UserRoleState {
+  // ... existentes
+  isClientOwner: boolean;  // Tiene clientes propios
+  isTeamMember: boolean;   // Solo es miembro de equipo
+  canCreateClients: boolean; // isAdmin || isClientOwner
+}
+```
+
+### Paso 3: Ocultar botón "Nuevo Cliente" para miembros de equipo
+
+En `ClientPortal.tsx`, mostrar el botón solo si `canCreateClients` es true (solo admins y propietarios de clientes).
+
+### Paso 4: Reforzar permisos en base de datos
+
+La política de INSERT actual ya restringe correctamente:
+```sql
+-- Solo admins y clients pueden crear
+WITH CHECK: auth.uid() = user_id AND (has_role('admin') OR has_role('client'))
+```
+
+Pero un miembro de equipo tiene rol `client` implícito. Debemos verificar si tiene clientes **propios** antes de permitir crear.
 
 ---
 
-### Resumen
+## Archivos a Modificar
 
-| Paso | Descripción |
-|------|-------------|
-| 1 | Crear trigger en `auth.users` para vincular membresías por email |
-| 2 | Modificar `ClientPortal.tsx` para buscar por email además de user_id |
-| 3 | Modificar `useUserRole.tsx` para detectar rol `client` por membresías |
-| 4 | Actualizar RLS policies para permitir acceso por email |
+| Archivo | Cambios |
+|---------|---------|
+| **Base de datos** | Nueva política RLS para `embed_clients` que permita acceso a team members |
+| `src/hooks/useUserRole.tsx` | Agregar `isClientOwner`, `isTeamMember`, refinar `canCreateClients` |
+| `src/pages/ClientPortal.tsx` | Condicionar botón "Nuevo Cliente" a `canCreateClients` correctamente |
 
-Esto te permitirá autorizar cualquier email a cualquier cliente directamente desde la base de datos.
+---
+
+## Flujo de Permisos Resultante
+
+```text
++-------------------+------------------+------------------+
+| Tipo de Usuario   | Ver Clientes     | Crear Clientes   |
++-------------------+------------------+------------------+
+| Admin             | Todos            | Si               |
+| Propietario       | Sus propios      | Si               |
+| Miembro de Equipo | Solo asignados   | No               |
+| Usuario normal    | Ninguno          | No               |
++-------------------+------------------+------------------+
+```
+
+---
+
+## Viabilidad y Beneficios
+
+**Es totalmente viable** implementar este control. Beneficios:
+
+- Mantienes control total sobre qué clientes existen
+- Los miembros de equipo solo ven y pueden configurar lo que les asignes
+- Separación clara entre propietarios y colaboradores
+- Sin cambios a la estructura de base de datos existente (solo políticas RLS)
