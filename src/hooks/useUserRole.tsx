@@ -9,6 +9,8 @@ interface UserRoleState {
   roles: AppRole[];
   isAdmin: boolean;
   isClient: boolean;
+  isClientOwner: boolean;
+  isTeamMember: boolean;
   canCreateClients: boolean;
   loading: boolean;
 }
@@ -16,12 +18,16 @@ interface UserRoleState {
 export const useUserRole = (): UserRoleState => {
   const { user } = useAuth();
   const [roles, setRoles] = useState<AppRole[]>([]);
+  const [isClientOwner, setIsClientOwner] = useState(false);
+  const [isTeamMember, setIsTeamMember] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchRoles = async () => {
       if (!user) {
         setRoles([]);
+        setIsClientOwner(false);
+        setIsTeamMember(false);
         setLoading(false);
         return;
       }
@@ -37,6 +43,20 @@ export const useUserRole = (): UserRoleState => {
           console.error('Error fetching user roles:', rolesError);
         }
 
+        // Check if user owns any clients
+        const { data: ownedClients, error: ownedError } = await supabase
+          .from('embed_clients')
+          .select('id')
+          .eq('user_id', user.id)
+          .limit(1);
+
+        if (ownedError) {
+          console.error('Error fetching owned clients:', ownedError);
+        }
+
+        const hasOwnedClients = (ownedClients && ownedClients.length > 0);
+        setIsClientOwner(hasOwnedClients);
+
         // Check if user has team memberships (by user_id or email)
         const userEmail = user.email?.toLowerCase() || '';
         const { data: memberships, error: membershipError } = await supabase
@@ -50,11 +70,14 @@ export const useUserRole = (): UserRoleState => {
           console.error('Error fetching memberships:', membershipError);
         }
 
+        const hasMemberships = (memberships && memberships.length > 0);
+        setIsTeamMember(hasMemberships && !hasOwnedClients);
+
         // Build roles array
         let userRoles: AppRole[] = (rolesData || []).map(r => r.role as AppRole);
         
-        // If user has memberships, ensure they have 'client' role
-        if (memberships && memberships.length > 0 && !userRoles.includes('client')) {
+        // If user has memberships or owns clients, ensure they have 'client' role
+        if ((hasMemberships || hasOwnedClients) && !userRoles.includes('client')) {
           userRoles.push('client');
         }
 
@@ -62,6 +85,8 @@ export const useUserRole = (): UserRoleState => {
       } catch (e) {
         console.error('Error fetching roles:', e);
         setRoles([]);
+        setIsClientOwner(false);
+        setIsTeamMember(false);
       } finally {
         setLoading(false);
       }
@@ -72,13 +97,16 @@ export const useUserRole = (): UserRoleState => {
 
   const isAdmin = roles.includes('admin');
   const isClient = roles.includes('client');
-  const canCreateClients = isAdmin || isClient;
+  // Only admins and client owners can create new clients, not team members
+  const canCreateClients = isAdmin || isClientOwner;
 
   return {
     role: roles.length > 0 ? roles[0] : null,
     roles,
     isAdmin,
     isClient,
+    isClientOwner,
+    isTeamMember,
     canCreateClients,
     loading,
   };
