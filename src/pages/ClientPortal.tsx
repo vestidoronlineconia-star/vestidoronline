@@ -54,7 +54,7 @@ interface EmbedClient {
 
 const ClientPortal = () => {
   const { user } = useAuth();
-  const { isAdmin, isClient, loading: roleLoading } = useUserRole();
+  const { isAdmin, isClient, canCreateClients, loading: roleLoading } = useUserRole();
   const navigate = useNavigate();
   const [clients, setClients] = useState<EmbedClient[]>([]);
   const [clientUsage, setClientUsage] = useState<Record<string, number>>({});
@@ -309,13 +309,14 @@ const ClientPortal = () => {
               <h1 className="text-3xl font-bold">Portal de Clientes</h1>
               <p className="text-muted-foreground">Gestiona tus tiendas virtuales</p>
             </div>
-            <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-              <DialogTrigger asChild>
-                <Button>
-                  <Plus className="w-4 h-4 mr-2" />
-                  Nuevo Cliente
-                </Button>
-              </DialogTrigger>
+            {canCreateClients && (
+              <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button>
+                    <Plus className="w-4 h-4 mr-2" />
+                    Nuevo Cliente
+                  </Button>
+                </DialogTrigger>
               <DialogContent>
                 <DialogHeader>
                   <DialogTitle>Crear nuevo cliente</DialogTitle>
@@ -356,7 +357,8 @@ const ClientPortal = () => {
                   </Button>
                 </DialogFooter>
               </DialogContent>
-            </Dialog>
+              </Dialog>
+            )}
           </div>
 
           {/* Client Cards */}
