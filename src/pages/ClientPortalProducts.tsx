@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useProducts, Product, CreateProductData } from '@/hooks/useProducts';
 import { Button } from '@/components/ui/button';
@@ -15,6 +15,7 @@ import { ProductCard } from '@/components/products/ProductCard';
 import { ProductModal } from '@/components/products/ProductModal';
 import { ProductImporter } from '@/components/products/ProductImporter';
 import { CATEGORIES } from '@/lib/categories';
+import { supabase } from '@/integrations/supabase/client';
 
 const ClientPortalProducts = () => {
   const navigate = useNavigate();
@@ -29,6 +30,26 @@ const ClientPortalProducts = () => {
   const [isImporterOpen, setIsImporterOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [selectedProducts, setSelectedProducts] = useState<string[]>([]);
+  const [apiKey, setApiKey] = useState<string>('');
+
+  // Fetch API key for the client
+  useEffect(() => {
+    const fetchApiKey = async () => {
+      if (!clientId) return;
+      
+      const { data } = await supabase
+        .from('embed_clients')
+        .select('api_key')
+        .eq('id', clientId)
+        .single();
+      
+      if (data?.api_key) {
+        setApiKey(data.api_key);
+      }
+    };
+    
+    fetchApiKey();
+  }, [clientId]);
 
   // Filter products
   const filteredProducts = products.filter(product => {
@@ -235,6 +256,8 @@ const ClientPortalProducts = () => {
           open={isImporterOpen}
           onClose={() => setIsImporterOpen(false)}
           onImport={handleImport}
+          apiKey={apiKey}
+          clientId={clientId}
         />
       </div>
     </>
