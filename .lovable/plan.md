@@ -1,131 +1,204 @@
 
-# Plan: Control de Acceso para Miembros de Equipo
 
-## Resumen del Problema
+# Plan: Sistema de Importación Multi-Canal para Productos
 
-Se detectaron **dos problemas principales**:
+## Objetivo
 
-1. **El cliente "moonlight" no aparece** para el usuario invitado (`santy2380.ss@gmail.com`) debido a políticas RLS mal configuradas
-2. **Puede crear nuevos clientes** cuando solo debería poder configurar el que le asignaste
+Crear un sistema de importación de productos que ofrezca **múltiples opciones** según el nivel técnico del cliente:
+1. **CSV** (actual) - Para usuarios básicos
+2. **JSON/SQL Directo** - Para usuarios técnicos con base de datos
+3. **API REST** - Para sincronización automática desde sistemas externos
+4. **URL Externa** - Importar desde un endpoint JSON público
 
 ---
 
-## Análisis Técnico
-
-### Problema 1: RLS de `embed_clients` bloquea a miembros de equipo
-
-Las políticas actuales de SELECT en `embed_clients` son:
+## Arquitectura del Sistema
 
 ```text
-Policy 1: "Users can view their own embed clients"
-  RESTRICTIVE - USING: auth.uid() = user_id
-
-Policy 2: "Public can view limited columns of active clients"  
-  RESTRICTIVE - USING: is_active = true
+                    ┌────────────────────────────────────────┐
+                    │         PORTAL DE IMPORTACIÓN          │
+                    │       (Modal con pestañas/tabs)        │
+                    └────────────────────────────────────────┘
+                                       │
+           ┌───────────────┬───────────┼───────────┬──────────────┐
+           ▼               ▼           ▼           ▼              ▼
+    ┌─────────────┐ ┌─────────────┐ ┌─────────────┐ ┌─────────────┐
+    │    CSV      │ │    JSON     │ │  API REST   │ │ URL Externa │
+    │  (archivo)  │ │  (pegar)    │ │ (endpoint)  │ │  (fetch)    │
+    └──────┬──────┘ └──────┬──────┘ └──────┬──────┘ └──────┬──────┘
+           │               │               │               │
+           └───────────────┴───────────────┴───────────────┘
+                                   │
+                                   ▼
+                    ┌────────────────────────────────────────┐
+                    │        PREVIEW / VALIDACIÓN            │
+                    │   - Tabla con productos parseados      │
+                    │   - Errores y advertencias             │
+                    │   - Mapeo de columnas                  │
+                    └────────────────────────────────────────┘
+                                   │
+                                   ▼
+                    ┌────────────────────────────────────────┐
+                    │          BASE DE DATOS                 │
+                    │        client_products                 │
+                    └────────────────────────────────────────┘
 ```
-
-**El problema**: Ambas son `RESTRICTIVE` (Permissive: No). Cuando múltiples políticas RESTRICTIVE existen, **TODAS** deben cumplirse. Para ver un cliente:
-- Debe ser el propietario (`user_id = auth.uid()`) **Y**
-- El cliente debe estar activo (`is_active = true`)
-
-Un miembro de equipo **no** es el propietario, por lo que la primera condición falla y no puede ver nada.
-
-### Problema 2: Lógica de permisos permite crear clientes
-
-En `useUserRole.tsx` línea 75:
-```typescript
-const canCreateClients = isAdmin || isClient;
-```
-
-Cualquier usuario con rol `client` (incluyendo miembros de equipo) puede crear clientes nuevos. Esto no es lo que deseas.
 
 ---
 
-## Solución Propuesta
+## Opciones de Importación
 
-### Paso 1: Corregir política RLS de `embed_clients`
+### Opcion 1: CSV (Ya existe - Mejoras)
+- Mantener funcionalidad actual
+- Agregar preview visual de productos antes de importar
+- Mejorar manejo de errores
 
-Agregar una nueva política PERMISSIVE que permita a los miembros de equipo ver los clientes a los que pertenecen:
+### Opcion 2: JSON Directo
+Para clientes técnicos que exportan desde su base de datos:
 
-```sql
-CREATE POLICY "Team members can view their assigned clients"
-ON embed_clients FOR SELECT
-TO authenticated
-USING (
-  EXISTS (
-    SELECT 1 FROM client_team_members
-    WHERE client_team_members.client_id = embed_clients.id
-      AND (
-        client_team_members.user_id = auth.uid() 
-        OR LOWER(client_team_members.email) = LOWER(auth.email())
-      )
-      AND client_team_members.accepted_at IS NOT NULL
-  )
-);
+```json
+[
+  {
+    "name": "Remera Básica",
+    "sku": "REM-001",
+    "image_url": "https://cdn.tienda.com/remera.jpg",
+    "category": "remera",
+    "sizes": ["S", "M", "L", "XL"],
+    "price": 2500
+  }
+]
 ```
 
-### Paso 2: Diferenciar entre propietarios y miembros de equipo
+El cliente puede pegar este JSON directamente en un textarea.
 
-Modificar `useUserRole.tsx` para distinguir entre:
-- **`isOwner`**: Tiene clientes propios (puede crear más)
-- **`isTeamMember`**: Solo tiene membresías en clientes de otros (no puede crear)
+### Opcion 3: API REST Endpoint
+Crear un endpoint que sistemas externos pueden llamar:
 
-```typescript
-// Nuevo estado del hook
-interface UserRoleState {
-  // ... existentes
-  isClientOwner: boolean;  // Tiene clientes propios
-  isTeamMember: boolean;   // Solo es miembro de equipo
-  canCreateClients: boolean; // isAdmin || isClientOwner
+```text
+POST /functions/v1/import-products
+Authorization: Bearer {API_KEY}
+Content-Type: application/json
+
+{
+  "client_id": "uuid-del-cliente",
+  "products": [...]
 }
 ```
 
-### Paso 3: Ocultar botón "Nuevo Cliente" para miembros de equipo
+El cliente puede automatizar la sincronización desde su sistema.
 
-En `ClientPortal.tsx`, mostrar el botón solo si `canCreateClients` es true (solo admins y propietarios de clientes).
-
-### Paso 4: Reforzar permisos en base de datos
-
-La política de INSERT actual ya restringe correctamente:
-```sql
--- Solo admins y clients pueden crear
-WITH CHECK: auth.uid() = user_id AND (has_role('admin') OR has_role('client'))
-```
-
-Pero un miembro de equipo tiene rol `client` implícito. Debemos verificar si tiene clientes **propios** antes de permitir crear.
-
----
-
-## Archivos a Modificar
-
-| Archivo | Cambios |
-|---------|---------|
-| **Base de datos** | Nueva política RLS para `embed_clients` que permita acceso a team members |
-| `src/hooks/useUserRole.tsx` | Agregar `isClientOwner`, `isTeamMember`, refinar `canCreateClients` |
-| `src/pages/ClientPortal.tsx` | Condicionar botón "Nuevo Cliente" a `canCreateClients` correctamente |
-
----
-
-## Flujo de Permisos Resultante
+### Opcion 4: URL Externa (Fetch)
+El cliente proporciona una URL que devuelve JSON con sus productos:
 
 ```text
-+-------------------+------------------+------------------+
-| Tipo de Usuario   | Ver Clientes     | Crear Clientes   |
-+-------------------+------------------+------------------+
-| Admin             | Todos            | Si               |
-| Propietario       | Sus propios      | Si               |
-| Miembro de Equipo | Solo asignados   | No               |
-| Usuario normal    | Ninguno          | No               |
-+-------------------+------------------+------------------+
+https://mi-tienda.com/api/productos.json
+```
+
+El sistema hace fetch y parsea los productos automáticamente.
+
+---
+
+## Componentes a Crear/Modificar
+
+| Archivo | Accion | Descripcion |
+|---------|--------|-------------|
+| `src/components/products/ProductImporter.tsx` | **Modificar** | Convertir a sistema multi-tab con todas las opciones |
+| `src/components/products/ImportPreview.tsx` | **Crear** | Componente de preview visual antes de confirmar |
+| `src/components/products/JsonImporter.tsx` | **Crear** | Tab para pegar JSON directo |
+| `src/components/products/UrlImporter.tsx` | **Crear** | Tab para importar desde URL |
+| `supabase/functions/import-products/index.ts` | **Crear** | Edge function para API REST |
+| `src/pages/ClientPortalDocs.tsx` | **Modificar** | Agregar documentacion de la API de importacion |
+
+---
+
+## UI del Nuevo Importador
+
+El modal tendrá 4 pestañas:
+
+| Tab | Icono | Para quien |
+|-----|-------|------------|
+| CSV | FileSpreadsheet | Usuarios que exportan desde Excel/Sheets |
+| JSON | Code | Desarrolladores con acceso a base de datos |
+| API | Zap | Sistemas automatizados (Tienda Nube, etc.) |
+| URL | Link | Clientes con endpoint JSON público |
+
+---
+
+## Flujo de Cada Opcion
+
+### CSV
+1. Descargar plantilla
+2. Subir archivo
+3. Ver preview con productos parseados
+4. Confirmar importacion
+
+### JSON
+1. Pegar JSON en textarea
+2. Validacion en tiempo real
+3. Ver preview con productos parseados
+4. Confirmar importacion
+
+### API
+1. Ver API Key del cliente
+2. Copiar ejemplo de request
+3. El cliente hace POST desde su sistema
+4. Los productos se agregan automaticamente
+
+### URL Externa
+1. Ingresar URL del endpoint JSON
+2. El sistema hace fetch y muestra preview
+3. Mapear campos si es necesario
+4. Confirmar importacion
+
+---
+
+## Edge Function: import-products
+
+```typescript
+// supabase/functions/import-products/index.ts
+// Acepta POST con productos y API_KEY
+// Valida API_KEY contra embed_clients
+// Inserta productos en client_products
 ```
 
 ---
 
-## Viabilidad y Beneficios
+## Mapeo de Campos Inteligente
 
-**Es totalmente viable** implementar este control. Beneficios:
+Para manejar diferentes formatos de JSON, el sistema intentara mapear campos automaticamente:
 
-- Mantienes control total sobre qué clientes existen
-- Los miembros de equipo solo ven y pueden configurar lo que les asignes
-- Separación clara entre propietarios y colaboradores
-- Sin cambios a la estructura de base de datos existente (solo políticas RLS)
+| Campo Esperado | Alternativas Aceptadas |
+|----------------|------------------------|
+| `name` | `nombre`, `title`, `producto`, `product_name` |
+| `image_url` | `imagen`, `img`, `photo`, `picture`, `url_imagen` |
+| `category` | `categoria`, `type`, `tipo` |
+| `price` | `precio`, `cost`, `valor` |
+| `sku` | `codigo`, `code`, `id_producto` |
+| `sizes` | `talles`, `tallas`, `variantes` |
+
+---
+
+## Secuencia de Implementacion
+
+1. Crear componentes nuevos (ImportPreview, JsonImporter, UrlImporter)
+2. Refactorizar ProductImporter a sistema de tabs
+3. Crear edge function import-products
+4. Agregar documentacion de API en ClientPortalDocs
+5. Agregar manejo de mapeo de campos
+
+---
+
+## Seccion Tecnica
+
+### Estructura de Base de Datos (sin cambios)
+La tabla `client_products` ya soporta todos los campos necesarios:
+- `name`, `sku`, `image_url`, `category`, `sizes`, `price`, `is_active`
+
+### RLS
+La edge function usara service_role para insertar productos, validando la API_KEY del cliente.
+
+### Validaciones
+- Imagen URL valida y accesible
+- Categoria dentro de las permitidas
+- SKU unico por cliente (opcional)
+
