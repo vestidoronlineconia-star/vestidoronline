@@ -184,16 +184,26 @@ Deno.serve(async (req) => {
   }
 
   try {
-    // Get API key from Authorization header
+    // Get API key from Authorization header or X-API-Key header
     const authHeader = req.headers.get("Authorization");
-    if (!authHeader?.startsWith("Bearer ")) {
+    const xApiKey = req.headers.get("X-API-Key");
+    
+    let apiKey: string | null = null;
+    
+    if (xApiKey) {
+      apiKey = xApiKey.trim();
+    } else if (authHeader?.startsWith("Bearer ")) {
+      apiKey = authHeader.replace("Bearer ", "").trim();
+    }
+    
+    console.log("Received API key:", apiKey);
+    
+    if (!apiKey) {
       return new Response(
-        JSON.stringify({ error: "API key required in Authorization header" }),
+        JSON.stringify({ error: "API key required in Authorization header (Bearer token) or X-API-Key header" }),
         { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
-
-    const apiKey = authHeader.replace("Bearer ", "");
 
     // Create Supabase client with service role
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
@@ -201,15 +211,18 @@ Deno.serve(async (req) => {
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     // Validate API key and get client
-    const { data: client, error: clientError } = await supabase
+    const { data: clients, error: clientError } = await supabase
       .from("embed_clients")
       .select("id, is_active")
-      .eq("api_key", apiKey)
-      .single();
+      .eq("api_key", apiKey);
+
+    console.log("Client lookup result:", { clients, error: clientError?.message });
+    
+    const client = clients?.[0];
 
     if (clientError || !client) {
       return new Response(
-        JSON.stringify({ error: "Invalid API key" }),
+        JSON.stringify({ error: "Invalid API key", details: clientError?.message }),
         { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }

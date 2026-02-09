@@ -16,7 +16,7 @@ export const ApiImporter = ({ apiKey, clientId }: ApiImporterProps) => {
   const baseUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/import-products`;
 
   const exampleRequest = `curl -X POST "${baseUrl}" \\
-  -H "Authorization: Bearer ${apiKey}" \\
+  -H "X-API-Key: ${apiKey}" \\
   -H "Content-Type: application/json" \\
   -d '{
     "products": [
