@@ -1,17 +1,19 @@
 import { useState, useMemo } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, Link } from 'react-router-dom';
 import { useClientBySlug } from '@/hooks/useClientBySlug';
+import { useAuth } from '@/hooks/useAuth';
 import { usePublicProducts, Product } from '@/hooks/useProducts';
 import { CATEGORIES } from '@/lib/categories';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, ShoppingBag, Menu, X, Sparkles } from 'lucide-react';
+import { Loader2, ShoppingBag, Menu, X, Sparkles, LogIn } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ProductDetailModal } from '@/components/store/ProductDetailModal';
 
 const ClientStore = () => {
   const { slug } = useParams<{ slug: string }>();
+  const { user, loading: authLoading } = useAuth();
   const { clientConfig, loading: configLoading, error } = useClientBySlug(slug);
   const { products, loading: productsLoading } = usePublicProducts(
     clientConfig?.id || null,
@@ -41,10 +43,35 @@ const ClientStore = () => {
     return Object.values(stockBySize).reduce((sum: number, qty: number) => sum + qty, 0);
   };
 
-  if (configLoading) {
+  if (configLoading || authLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (!user && (error || !clientConfig)) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background p-4">
+        <Card className="max-w-md w-full text-center p-8">
+          <LogIn className="w-16 h-16 mx-auto text-primary mb-4" />
+          <h1 className="text-2xl font-bold mb-2">Iniciá sesión para continuar</h1>
+          <p className="text-muted-foreground mb-6">
+            Necesitás una cuenta para acceder a esta tienda.
+          </p>
+          <div className="space-y-3">
+            <Button asChild className="w-full">
+              <Link to="/auth">Iniciar sesión</Link>
+            </Button>
+            <p className="text-sm text-muted-foreground">
+              ¿No tenés cuenta?{' '}
+              <Link to="/auth" className="text-primary underline">
+                Registrate
+              </Link>
+            </p>
+          </div>
+        </Card>
       </div>
     );
   }
