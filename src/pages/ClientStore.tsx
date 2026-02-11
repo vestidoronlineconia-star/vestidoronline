@@ -53,7 +53,7 @@ const ClientStore = () => {
     );
   }
 
-  if (!user && (error || !clientConfig)) {
+  if (!user) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background p-4">
         <Card className="max-w-md w-full text-center p-8">

@@ -715,6 +715,7 @@ export type Database = {
         }
         Returns: boolean
       }
+      is_client_active: { Args: { p_client_id: string }; Returns: boolean }
       user_has_client_permission: {
         Args: {
           p_client_id: string
