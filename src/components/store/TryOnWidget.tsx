@@ -33,14 +33,9 @@ const saveToStorageAndHistory = async (
 ) => {
   try {
     const timestamp = Date.now();
-
-    // Compress user photo
     const compressed = await compressImage(userPhotoFile, 1024, 0.7);
-
-    // Convert result base64 to blob
     const resultBlob = base64ToBlob(resultBase64);
 
-    // Upload both in parallel
     const userPath = `${userId}/${timestamp}-user.jpg`;
     const resultPath = `${userId}/${timestamp}-result.jpg`;
 
@@ -49,10 +44,17 @@ const saveToStorageAndHistory = async (
       supabase.storage.from('tryon-results').upload(resultPath, resultBlob, { contentType: 'image/jpeg' }),
     ]);
 
-    if (userUpload.error) console.error('User photo upload error:', userUpload.error);
-    if (resultUpload.error) console.error('Result upload error:', resultUpload.error);
+    if (userUpload.error) {
+      console.error('User photo upload error:', userUpload.error);
+      toast.warning('No se pudo guardar la foto en el historial');
+      return;
+    }
+    if (resultUpload.error) {
+      console.error('Result upload error:', resultUpload.error);
+      toast.warning('No se pudo guardar el resultado en el historial');
+      return;
+    }
 
-    // Insert history record
     const { error: insertError } = await supabase.from('tryon_history').insert({
       user_id: userId,
       user_email: userEmail || null,
@@ -61,11 +63,17 @@ const saveToStorageAndHistory = async (
       category,
       user_size: selectedSize || null,
       garment_size: selectedSize || null,
-    } as any);
+    });
 
-    if (insertError) console.error('History insert error:', insertError);
+    if (insertError) {
+      console.error('History insert error:', insertError);
+      toast.warning('No se pudo registrar en el historial');
+    } else {
+      toast.success('Resultado guardado en tu historial');
+    }
   } catch (e) {
     console.error('Error saving to storage/history:', e);
+    toast.warning('No se pudo guardar en el historial');
   }
 };
 
