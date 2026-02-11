@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -86,6 +86,8 @@ export default function Auth() {
   const emailInputRef = useRef<HTMLInputElement>(null);
   const suggestionsRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const redirectPath = searchParams.get('redirect');
   const { toast } = useToast();
   const { checkPassword, checking } = usePasswordValidation();
 
@@ -176,7 +178,7 @@ export default function Auth() {
           password: validation.data.password,
         });
         if (error) throw error;
-        navigate('/');
+        navigate(redirectPath || '/');
       } else {
         // Verificar contraseña comprometida antes del registro
         const pwdCheck = await checkPassword(validation.data.password);
@@ -195,7 +197,7 @@ export default function Auth() {
           email: validation.data.email,
           password: validation.data.password,
           options: {
-            emailRedirectTo: `${window.location.origin}/`,
+            emailRedirectTo: `${window.location.origin}${redirectPath || '/'}`,
           },
         });
         if (error) throw error;
