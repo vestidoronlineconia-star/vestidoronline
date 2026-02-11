@@ -1,14 +1,73 @@
 import { useState, useEffect } from 'react';
 import { Product } from '@/hooks/useProducts';
 import { ClientConfig } from '@/hooks/useClientBySlug';
+import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { FileUpload } from '@/components/FileUpload';
 import { LoadingProgress } from '@/components/LoadingProgress';
 import { supabase } from '@/integrations/supabase/client';
+import { compressImage } from '@/lib/imageCompression';
 import { toast } from 'sonner';
 import { Sparkles, RotateCcw, Download } from 'lucide-react';
 import type { FileData, TryOnStatus } from '@/types';
+
+// Convert a data URL (base64) to a Blob
+const base64ToBlob = (dataUrl: string): Blob => {
+  const [header, data] = dataUrl.split(',');
+  const mime = header.match(/:(.*?);/)?.[1] || 'image/jpeg';
+  const binary = atob(data);
+  const array = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) array[i] = binary.charCodeAt(i);
+  return new Blob([array], { type: mime });
+};
+
+// Save images to storage and history in background (non-blocking)
+const saveToStorageAndHistory = async (
+  userId: string,
+  userEmail: string | undefined,
+  userPhotoFile: File,
+  resultBase64: string,
+  category: string,
+  selectedSize: string | null,
+) => {
+  try {
+    const timestamp = Date.now();
+
+    // Compress user photo
+    const compressed = await compressImage(userPhotoFile, 1024, 0.7);
+
+    // Convert result base64 to blob
+    const resultBlob = base64ToBlob(resultBase64);
+
+    // Upload both in parallel
+    const userPath = `${userId}/${timestamp}-user.jpg`;
+    const resultPath = `${userId}/${timestamp}-result.jpg`;
+
+    const [userUpload, resultUpload] = await Promise.all([
+      supabase.storage.from('tryon-results').upload(userPath, compressed.blob, { contentType: 'image/jpeg' }),
+      supabase.storage.from('tryon-results').upload(resultPath, resultBlob, { contentType: 'image/jpeg' }),
+    ]);
+
+    if (userUpload.error) console.error('User photo upload error:', userUpload.error);
+    if (resultUpload.error) console.error('Result upload error:', resultUpload.error);
+
+    // Insert history record
+    const { error: insertError } = await supabase.from('tryon_history').insert({
+      user_id: userId,
+      user_email: userEmail || null,
+      user_image_url: userPath,
+      generated_image_url: resultPath,
+      category,
+      user_size: selectedSize || null,
+      garment_size: selectedSize || null,
+    } as any);
+
+    if (insertError) console.error('History insert error:', insertError);
+  } catch (e) {
+    console.error('Error saving to storage/history:', e);
+  }
+};
 
 interface TryOnWidgetProps {
   product: Product;
@@ -34,6 +93,7 @@ const imageToBase64 = async (url: string): Promise<string> => {
 };
 
 export const TryOnWidget = ({ product, selectedSize, clientConfig }: TryOnWidgetProps) => {
+  const { user } = useAuth();
   const [userPhoto, setUserPhoto] = useState<FileData | null>(null);
   const [resultImage, setResultImage] = useState<string | null>(null);
   const [status, setStatus] = useState<TryOnStatus>('idle');
@@ -122,6 +182,18 @@ export const TryOnWidget = ({ product, selectedSize, clientConfig }: TryOnWidget
           category: product.category,
           referer_domain: window.location.hostname,
         });
+
+        // Save to storage in background (non-blocking)
+        if (user && userPhoto?.file) {
+          saveToStorageAndHistory(
+            user.id,
+            user.email,
+            userPhoto.file,
+            generateData.image,
+            product.category,
+            selectedSize,
+          );
+        }
       } else {
         throw new Error('No se recibió la imagen resultado');
       }

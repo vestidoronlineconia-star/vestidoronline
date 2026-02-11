@@ -69,7 +69,7 @@ function HistoryItemCard({ item, onView, onDelete }: HistoryItemCardProps) {
     <Card className="overflow-hidden group hover:shadow-lg transition-shadow duration-300">
       <div className="relative aspect-[3/4]">
         <img
-          src={item.generated_image_url}
+          src={item.generated_image_signed_url || item.generated_image_url}
           alt={`Try-on ${getCategoryLabel(item.category)}`}
           className="w-full h-full object-cover"
           loading="lazy"
@@ -89,7 +89,7 @@ function HistoryItemCard({ item, onView, onDelete }: HistoryItemCardProps) {
             size="icon"
             variant="ghost"
             className="h-10 w-10 bg-white/10 hover:bg-white/20 text-white"
-            onClick={() => handleDownload(item.generated_image_url, `tryon-${item.id}.jpg`)}
+            onClick={() => handleDownload(item.generated_image_signed_url || item.generated_image_url, `tryon-${item.id}.jpg`)}
           >
             <Download className="h-5 w-5" />
           </Button>
@@ -170,7 +170,7 @@ function DetailModal({ item, open, onClose }: DetailModalProps) {
 
   const currentImage = showView360 && item.view360_image_url 
     ? item.view360_image_url 
-    : item.generated_image_url;
+    : (item.generated_image_signed_url || item.generated_image_url);
 
   const handleDownload = async () => {
     try {
@@ -261,12 +261,12 @@ function DetailModal({ item, open, onClose }: DetailModalProps) {
 
             {/* Thumbnails */}
             <div className="grid grid-cols-2 gap-2">
-              {item.user_image_url && (
+              {item.user_image_signed_url && (
                 <div className="space-y-1">
                   <span className="text-xs text-muted-foreground">Tu foto</span>
                   <div className="aspect-square rounded-lg overflow-hidden bg-muted">
                     <img 
-                      src={item.user_image_url} 
+                      src={item.user_image_signed_url} 
                       alt="User" 
                       className="w-full h-full object-cover"
                     />

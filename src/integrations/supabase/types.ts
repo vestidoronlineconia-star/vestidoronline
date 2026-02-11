@@ -503,6 +503,7 @@ export type Database = {
           garment_size: string | null
           generated_image_url: string
           id: string
+          user_email: string | null
           user_id: string
           user_image_url: string | null
           user_size: string | null
@@ -516,6 +517,7 @@ export type Database = {
           garment_size?: string | null
           generated_image_url: string
           id?: string
+          user_email?: string | null
           user_id: string
           user_image_url?: string | null
           user_size?: string | null
@@ -529,6 +531,7 @@ export type Database = {
           garment_size?: string | null
           generated_image_url?: string
           id?: string
+          user_email?: string | null
           user_id?: string
           user_image_url?: string | null
           user_size?: string | null
