@@ -459,7 +459,7 @@ const Index = () => {
   return (
     <>
       <div className="bg-ambient" />
-      <div className="min-h-screen flex items-center justify-center p-4 md:p-8 relative">
+      <div className="min-h-screen flex items-center justify-center p-4 md:p-8 pb-24 md:pb-8 relative">
         <div className="w-full max-w-6xl grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-16 items-center">
           {/* LEFT: INPUTS */}
           <div className="space-y-8 fade-in-up" style={{ animationDelay: "0.1s" }}>
