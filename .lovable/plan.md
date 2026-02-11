@@ -1,204 +1,149 @@
 
 
-# Plan: Sistema de Importación Multi-Canal para Productos
+# Plan: Guardar imagenes generadas y foto del usuario en Storage con compresion
 
-## Objetivo
+## Resumen
 
-Crear un sistema de importación de productos que ofrezca **múltiples opciones** según el nivel técnico del cliente:
-1. **CSV** (actual) - Para usuarios básicos
-2. **JSON/SQL Directo** - Para usuarios técnicos con base de datos
-3. **API REST** - Para sincronización automática desde sistemas externos
-4. **URL Externa** - Importar desde un endpoint JSON público
+Guardar automaticamente la imagen generada del try-on y la foto original del usuario en el bucket de Storage, comprimiendo ambas antes de subirlas. Vincular cada registro al email del usuario para trazabilidad e historial.
 
----
+## Cambios necesarios
 
-## Arquitectura del Sistema
+### 1. Migracion SQL
+
+- Crear bucket privado `tryon-results` con RLS por `user_id` en la ruta del archivo
+- Agregar columna `user_email` (text, nullable) a la tabla `tryon_history`
+
+```sql
+INSERT INTO storage.buckets (id, name, public) VALUES ('tryon-results', 'tryon-results', false);
+
+CREATE POLICY "Users upload own tryon images" ON storage.objects FOR INSERT
+WITH CHECK (bucket_id = 'tryon-results' AND auth.uid()::text = (storage.foldername(name))[1]);
+
+CREATE POLICY "Users view own tryon images" ON storage.objects FOR SELECT
+USING (bucket_id = 'tryon-results' AND auth.uid()::text = (storage.foldername(name))[1]);
+
+CREATE POLICY "Users delete own tryon images" ON storage.objects FOR DELETE
+USING (bucket_id = 'tryon-results' AND auth.uid()::text = (storage.foldername(name))[1]);
+
+ALTER TABLE tryon_history ADD COLUMN user_email text;
+```
+
+### 2. Modificar Edge Function `virtual-tryon/index.ts`
+
+En la accion `generate`, despues de obtener la imagen generada:
+
+- Recibir `userId` y `userEmail` del frontend
+- Decodificar base64 de la imagen generada y de la foto del usuario
+- Comprimir ambas imagenes en el servidor (redimensionar a max 1024px y calidad 70% JPEG usando canvas en Deno, o usando sharp-like approach con encoding)
+- Subirlas al bucket `tryon-results/{userId}/{timestamp}-result.jpg` y `{timestamp}-user.jpg`
+- Insertar registro en `tryon_history` con las URLs de Storage, email, categoria, talles y fit
+- Devolver el base64 original al frontend (para mostrar inmediatamente)
+
+Nota: En Deno (edge functions) no hay canvas nativo. La compresion se hara re-encodeando el JPEG con calidad reducida. Se puede usar la libreria `imagescript` de Deno o simplemente almacenar el JPEG tal cual viene de Gemini (que ya es comprimido) y comprimir solo la foto del usuario reduciendola en el frontend antes de enviarla.
+
+**Enfoque elegido**: Comprimir en el frontend (ya existe `imageCompression.ts`) antes de enviar a la edge function. La edge function solo sube los blobs al Storage.
+
+### 3. Modificar `TryOnWidget.tsx`
+
+- Importar `useAuth` para obtener `user.id` y `user.email`
+- Antes de enviar a la edge function, comprimir la foto del usuario usando `compressImage()` existente (max 1024px, quality 0.7)
+- Despues de recibir el resultado exitoso, enviar las imagenes (user photo comprimida + resultado generado) al backend para que las guarde
+- Agregar un paso post-generacion: llamar a la edge function con una nueva accion `save` o hacer el upload directamente desde el frontend usando `supabase.storage`
+
+**Enfoque preferido**: Upload directo desde el frontend usando `supabase.storage.from('tryon-results').upload(...)` - es mas simple y respeta las RLS policies. Luego insertar el registro en `tryon_history`.
+
+Flujo actualizado:
 
 ```text
-                    ┌────────────────────────────────────────┐
-                    │         PORTAL DE IMPORTACIÓN          │
-                    │       (Modal con pestañas/tabs)        │
-                    └────────────────────────────────────────┘
-                                       │
-           ┌───────────────┬───────────┼───────────┬──────────────┐
-           ▼               ▼           ▼           ▼              ▼
-    ┌─────────────┐ ┌─────────────┐ ┌─────────────┐ ┌─────────────┐
-    │    CSV      │ │    JSON     │ │  API REST   │ │ URL Externa │
-    │  (archivo)  │ │  (pegar)    │ │ (endpoint)  │ │  (fetch)    │
-    └──────┬──────┘ └──────┬──────┘ └──────┬──────┘ └──────┬──────┘
-           │               │               │               │
-           └───────────────┴───────────────┴───────────────┘
-                                   │
-                                   ▼
-                    ┌────────────────────────────────────────┐
-                    │        PREVIEW / VALIDACIÓN            │
-                    │   - Tabla con productos parseados      │
-                    │   - Errores y advertencias             │
-                    │   - Mapeo de columnas                  │
-                    └────────────────────────────────────────┘
-                                   │
-                                   ▼
-                    ┌────────────────────────────────────────┐
-                    │          BASE DE DATOS                 │
-                    │        client_products                 │
-                    └────────────────────────────────────────┘
+1. Usuario sube foto -> compressImage() reduce a max 1024px, quality 0.7
+2. Enviar base64 comprimido a edge function (analyze + generate)
+3. Recibir imagen generada (base64)
+4. Mostrar resultado al usuario
+5. En paralelo (sin bloquear UI):
+   a. Convertir base64 del resultado a Blob
+   b. Upload foto usuario comprimida a tryon-results/{userId}/{ts}-user.jpg
+   c. Upload resultado a tryon-results/{userId}/{ts}-result.jpg
+   d. Insertar registro en tryon_history con URLs y email
 ```
 
----
+### 4. Modificar `useTryOnHistory.tsx`
 
-## Opciones de Importación
+- En `deleteItem`: tambien eliminar los archivos del bucket Storage usando `supabase.storage.from('tryon-results').remove([paths])`
+- Agregar funcion para generar URLs firmadas (`createSignedUrl`) para mostrar imagenes del bucket privado
+- Modificar `fetchHistory` para generar signed URLs de cada imagen
 
-### Opcion 1: CSV (Ya existe - Mejoras)
-- Mantener funcionalidad actual
-- Agregar preview visual de productos antes de importar
-- Mejorar manejo de errores
+### 5. Modificar `TryOnHistory.tsx`
 
-### Opcion 2: JSON Directo
-Para clientes técnicos que exportan desde su base de datos:
-
-```json
-[
-  {
-    "name": "Remera Básica",
-    "sku": "REM-001",
-    "image_url": "https://cdn.tienda.com/remera.jpg",
-    "category": "remera",
-    "sizes": ["S", "M", "L", "XL"],
-    "price": 2500
-  }
-]
-```
-
-El cliente puede pegar este JSON directamente en un textarea.
-
-### Opcion 3: API REST Endpoint
-Crear un endpoint que sistemas externos pueden llamar:
-
-```text
-POST /functions/v1/import-products
-Authorization: Bearer {API_KEY}
-Content-Type: application/json
-
-{
-  "client_id": "uuid-del-cliente",
-  "products": [...]
-}
-```
-
-El cliente puede automatizar la sincronización desde su sistema.
-
-### Opcion 4: URL Externa (Fetch)
-El cliente proporciona una URL que devuelve JSON con sus productos:
-
-```text
-https://mi-tienda.com/api/productos.json
-```
-
-El sistema hace fetch y parsea los productos automáticamente.
-
----
-
-## Componentes a Crear/Modificar
-
-| Archivo | Accion | Descripcion |
-|---------|--------|-------------|
-| `src/components/products/ProductImporter.tsx` | **Modificar** | Convertir a sistema multi-tab con todas las opciones |
-| `src/components/products/ImportPreview.tsx` | **Crear** | Componente de preview visual antes de confirmar |
-| `src/components/products/JsonImporter.tsx` | **Crear** | Tab para pegar JSON directo |
-| `src/components/products/UrlImporter.tsx` | **Crear** | Tab para importar desde URL |
-| `supabase/functions/import-products/index.ts` | **Crear** | Edge function para API REST |
-| `src/pages/ClientPortalDocs.tsx` | **Modificar** | Agregar documentacion de la API de importacion |
-
----
-
-## UI del Nuevo Importador
-
-El modal tendrá 4 pestañas:
-
-| Tab | Icono | Para quien |
-|-----|-------|------------|
-| CSV | FileSpreadsheet | Usuarios que exportan desde Excel/Sheets |
-| JSON | Code | Desarrolladores con acceso a base de datos |
-| API | Zap | Sistemas automatizados (Tienda Nube, etc.) |
-| URL | Link | Clientes con endpoint JSON público |
-
----
-
-## Flujo de Cada Opcion
-
-### CSV
-1. Descargar plantilla
-2. Subir archivo
-3. Ver preview con productos parseados
-4. Confirmar importacion
-
-### JSON
-1. Pegar JSON en textarea
-2. Validacion en tiempo real
-3. Ver preview con productos parseados
-4. Confirmar importacion
-
-### API
-1. Ver API Key del cliente
-2. Copiar ejemplo de request
-3. El cliente hace POST desde su sistema
-4. Los productos se agregan automaticamente
-
-### URL Externa
-1. Ingresar URL del endpoint JSON
-2. El sistema hace fetch y muestra preview
-3. Mapear campos si es necesario
-4. Confirmar importacion
-
----
-
-## Edge Function: import-products
-
-```typescript
-// supabase/functions/import-products/index.ts
-// Acepta POST con productos y API_KEY
-// Valida API_KEY contra embed_clients
-// Inserta productos en client_products
-```
-
----
-
-## Mapeo de Campos Inteligente
-
-Para manejar diferentes formatos de JSON, el sistema intentara mapear campos automaticamente:
-
-| Campo Esperado | Alternativas Aceptadas |
-|----------------|------------------------|
-| `name` | `nombre`, `title`, `producto`, `product_name` |
-| `image_url` | `imagen`, `img`, `photo`, `picture`, `url_imagen` |
-| `category` | `categoria`, `type`, `tipo` |
-| `price` | `precio`, `cost`, `valor` |
-| `sku` | `codigo`, `code`, `id_producto` |
-| `sizes` | `talles`, `tallas`, `variantes` |
-
----
-
-## Secuencia de Implementacion
-
-1. Crear componentes nuevos (ImportPreview, JsonImporter, UrlImporter)
-2. Refactorizar ProductImporter a sistema de tabs
-3. Crear edge function import-products
-4. Agregar documentacion de API en ClientPortalDocs
-5. Agregar manejo de mapeo de campos
+- Las imagenes del historial ahora vendran como signed URLs (generadas en el hook)
+- No requiere cambios grandes, solo asegurarse de que las URLs sean validas
 
 ---
 
 ## Seccion Tecnica
 
-### Estructura de Base de Datos (sin cambios)
-La tabla `client_products` ya soporta todos los campos necesarios:
-- `name`, `sku`, `image_url`, `category`, `sizes`, `price`, `is_active`
+### Estructura de archivos en Storage
 
-### RLS
-La edge function usara service_role para insertar productos, validando la API_KEY del cliente.
+```text
+tryon-results/
+  {user_id}/
+    {timestamp}-user.jpg      (foto original comprimida)
+    {timestamp}-result.jpg    (imagen generada)
+```
 
-### Validaciones
-- Imagen URL valida y accesible
-- Categoria dentro de las permitidas
-- SKU unico por cliente (opcional)
+### Compresion
+
+Se reutiliza `src/lib/imageCompression.ts` existente para comprimir la foto del usuario en el frontend:
+- Max 1024px de ancho/alto
+- Calidad JPEG 0.7
+- La imagen generada por Gemini ya viene comprimida como JPEG/PNG, se almacena tal cual
+
+### Flujo de guardado (frontend)
+
+```typescript
+// Despues de obtener resultado exitoso
+const timestamp = Date.now();
+const userId = user.id;
+
+// 1. Upload foto usuario (ya comprimida)
+const userBlob = await compressImage(userPhoto.file);
+await supabase.storage
+  .from('tryon-results')
+  .upload(`${userId}/${timestamp}-user.jpg`, userBlob.blob);
+
+// 2. Upload resultado (convertir base64 a blob)
+const resultBlob = base64ToBlob(resultImage);
+await supabase.storage
+  .from('tryon-results')
+  .upload(`${userId}/${timestamp}-result.jpg`, resultBlob);
+
+// 3. Insertar en tryon_history
+await supabase.from('tryon_history').insert({
+  user_id: userId,
+  user_email: user.email,
+  user_image_url: `${userId}/${timestamp}-user.jpg`,
+  generated_image_url: `${userId}/${timestamp}-result.jpg`,
+  category: product.category,
+  user_size: selectedSize,
+  garment_size: selectedSize,
+});
+```
+
+### URLs firmadas para el historial
+
+Como el bucket es privado, se generan signed URLs con expiracion de 1 hora:
+
+```typescript
+const { data } = await supabase.storage
+  .from('tryon-results')
+  .createSignedUrl(item.generated_image_url, 3600);
+```
+
+### Archivos a modificar
+
+| Archivo | Cambio |
+|---------|--------|
+| SQL Migration | Crear bucket, RLS, agregar `user_email` |
+| `src/components/store/TryOnWidget.tsx` | Agregar upload a Storage + insert en tryon_history post-generacion |
+| `src/hooks/useTryOnHistory.tsx` | Signed URLs, delete con Storage cleanup |
+| `src/components/TryOnHistory.tsx` | Usar signed URLs para mostrar imagenes |
 
