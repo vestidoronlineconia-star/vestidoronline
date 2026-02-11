@@ -464,13 +464,13 @@ const Index = () => {
           {/* LEFT: INPUTS */}
           <div className="space-y-8 fade-in-up" style={{ animationDelay: "0.1s" }}>
             <div>
-              <h1 className="text-4xl md:text-5xl font-light tracking-tighter mb-2">
+              <h1 className="text-3xl md:text-4xl lg:text-5xl font-light tracking-tighter mb-2">
                 Vestidor <span className="font-semibold text-primary">Online</span>
               </h1>
               <p className="text-muted-foreground font-light">Nueva experiencia para probar ropa.</p>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-2 gap-3 md:gap-4">
               <FileUpload
                 id="uImg"
                 label="Tu Foto"
@@ -488,7 +488,7 @@ const Index = () => {
             </div>
 
             <div>
-              <label className="text-xs text-muted-foreground uppercase tracking-widest mb-3 block">
+              <label className="text-xs text-muted-foreground uppercase tracking-wide md:tracking-widest mb-3 block">
                 Selecciona Categoría
               </label>
               <div className="flex flex-wrap gap-2">

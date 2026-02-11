@@ -100,28 +100,28 @@ export const FileUpload = ({ label, onFileSelect, preview, id, icon, primaryColo
             </div>
           </>
         ) : (
-          <div className="text-center p-6 transition-all">
-            <div className="relative inline-block mb-4">
-              <div className="w-16 h-16 rounded-full bg-muted/30 flex items-center justify-center">
-                <IconComponent className="w-8 h-8 text-muted-foreground" />
+          <div className="text-center p-3 md:p-6 transition-all">
+            <div className="relative inline-block mb-2 md:mb-4">
+              <div className="w-10 h-10 md:w-16 md:h-16 rounded-full bg-muted/30 flex items-center justify-center">
+                <IconComponent className="w-5 h-5 md:w-8 md:h-8 text-muted-foreground" />
               </div>
             </div>
-            <span className="block text-sm text-foreground font-medium mb-1">
+            <span className="block text-xs md:text-sm text-foreground font-medium mb-1">
               {label}
             </span>
-            <span className="text-xs text-muted-foreground mb-4 block">
-              Arrastra aquí o usa los botones
+            <span className="text-[10px] md:text-xs text-muted-foreground mb-3 md:mb-4 block">
+              Arrastra o usa los botones
             </span>
             
             {/* Camera and Gallery buttons */}
-            <div className="flex gap-2 mt-3">
+            <div className="flex gap-2 mt-2 md:mt-3">
               <button
                 type="button"
                 onClick={handleCameraClick}
-                className="flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg bg-primary/10 hover:bg-primary/20 transition-colors"
+                className="flex-1 flex items-center justify-center gap-1 px-2 py-2 md:px-3 md:py-2.5 rounded-lg bg-primary/10 hover:bg-primary/20 transition-colors"
               >
-                <Camera className="w-4 h-4 text-primary" />
-                <span className="text-xs font-medium text-primary">Cámara</span>
+                <Camera className="w-3 h-3 md:w-4 md:h-4 text-primary" />
+                <span className="text-[10px] md:text-xs font-medium text-primary">Cámara</span>
               </button>
               <button
                 type="button"
@@ -129,10 +129,10 @@ export const FileUpload = ({ label, onFileSelect, preview, id, icon, primaryColo
                   e.stopPropagation();
                   document.getElementById(id)?.click();
                 }}
-                className="flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg bg-muted hover:bg-muted/80 transition-colors"
+                className="flex-1 flex items-center justify-center gap-1 px-2 py-2 md:px-3 md:py-2.5 rounded-lg bg-muted hover:bg-muted/80 transition-colors"
               >
-                <ImagePlus className="w-4 h-4 text-muted-foreground" />
-                <span className="text-xs font-medium text-muted-foreground">Galería</span>
+                <ImagePlus className="w-3 h-3 md:w-4 md:h-4 text-muted-foreground" />
+                <span className="text-[10px] md:text-xs font-medium text-muted-foreground">Galería</span>
               </button>
             </div>
           </div>
