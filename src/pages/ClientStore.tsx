@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useLocation } from 'react-router-dom';
 import { useClientBySlug } from '@/hooks/useClientBySlug';
 import { useAuth } from '@/hooks/useAuth';
 import { usePublicProducts, Product } from '@/hooks/useProducts';
@@ -13,7 +13,9 @@ import { ProductDetailModal } from '@/components/store/ProductDetailModal';
 
 const ClientStore = () => {
   const { slug } = useParams<{ slug: string }>();
+  const location = useLocation();
   const { user, loading: authLoading } = useAuth();
+  const authRedirect = `/auth?redirect=${encodeURIComponent(location.pathname)}`;
   const { clientConfig, loading: configLoading, error } = useClientBySlug(slug);
   const { products, loading: productsLoading } = usePublicProducts(
     clientConfig?.id || null,
@@ -62,11 +64,11 @@ const ClientStore = () => {
           </p>
           <div className="space-y-3">
             <Button asChild className="w-full">
-              <Link to="/auth">Iniciar sesión</Link>
+              <Link to={authRedirect}>Iniciar sesión</Link>
             </Button>
             <p className="text-sm text-muted-foreground">
               ¿No tenés cuenta?{' '}
-              <Link to="/auth" className="text-primary underline">
+              <Link to={authRedirect} className="text-primary underline">
                 Registrate
               </Link>
             </p>

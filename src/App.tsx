@@ -3,7 +3,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate, Outlet } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, Outlet, useSearchParams } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
@@ -50,6 +50,8 @@ function ProtectedRoute({ children }: { children?: React.ReactNode }) {
 
 function AuthRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
+  const [searchParams] = useSearchParams();
+  const redirectPath = searchParams.get('redirect');
 
   if (loading) {
     return (
@@ -60,7 +62,7 @@ function AuthRoute({ children }: { children: React.ReactNode }) {
   }
 
   if (user) {
-    return <Navigate to="/" replace />;
+    return <Navigate to={redirectPath || "/"} replace />;
   }
 
   return <>{children}</>;
