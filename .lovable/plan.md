@@ -1,40 +1,73 @@
 
-# Plan: Agregar espaciado inferior en mobile para evitar sobreposición con footer
+
+# Plan: Mostrar mensaje de inicio de sesion para usuarios no autenticados en tiendas
 
 ## Problema
 
-En pantallas móviles, cuando se genera una imagen de try-on, el botón de descarga (icono Download) queda muy pegado al borde inferior de la pantalla. Esto ocurre porque:
+Despues de la correccion de seguridad reciente, se elimino la politica publica de SELECT en `embed_clients`. Esto causa que usuarios no autenticados no puedan cargar ninguna tienda (`/tienda/santiago`), mostrando "Tienda no encontrada" en vez de un mensaje util.
 
-1. El contenedor principal usa `min-h-screen flex items-center justify-center` que centra el contenido verticalmente
-2. El `p-4 md:p-8` solo agrega padding horizontal/vertical uniforme
-3. En mobile no hay suficiente espacio abajo para el flujo de scroll, causando que elementos como el logo de "logs" o footer se superpongan
+## Solucion
 
-## Solución
-
-Agregar padding-bottom adicional específicamente para pantallas móviles al contenedor principal de `Index.tsx`. Esto crea un "buffer" de espacio al final de la página para que el usuario pueda scrollear sin que el botón de descarga se sobreponga con elementos fijos o del navegador.
+Modificar `ClientStore.tsx` para detectar cuando el usuario no esta autenticado y mostrar un cartel invitandolo a iniciar sesion o registrarse, con un boton que lo lleve a `/auth`.
 
 ## Cambios
 
-### Archivo: `src/pages/Index.tsx`
+### Archivo: `src/pages/ClientStore.tsx`
 
-Modificar el contenedor principal (línea 462) que actualmente es:
-```typescript
-<div className="min-h-screen flex items-center justify-center p-4 md:p-8 relative">
+1. Importar `useAuth` y componentes necesarios (`Link` de react-router-dom, icono `LogIn`).
+
+2. Obtener `{ user, loading: authLoading }` de `useAuth()`.
+
+3. Agregar una condicion antes del error de "Tienda no encontrada": si el usuario no esta autenticado y hubo error al cargar la tienda, mostrar un cartel con:
+   - Icono de login
+   - Titulo: "Inicia sesion para continuar"
+   - Descripcion: "Necesitas una cuenta para acceder a esta tienda"
+   - Boton "Iniciar sesion" que navega a `/auth`
+   - Link "Crear cuenta" debajo
+
+El bloque de error existente (lineas ~56-66) se modifica para agregar esta comprobacion:
+
+```text
+if (!user && (error || !clientConfig)) {
+  -> Mostrar cartel de login/registro
+} else if (error || !clientConfig) {
+  -> Mostrar "Tienda no encontrada" (caso de usuario logueado sin acceso)
+}
 ```
 
-Cambiar a:
-```typescript
-<div className="min-h-screen flex items-center justify-center p-4 md:p-8 pb-24 md:pb-8 relative">
-```
+### Detalle tecnico
 
-**Explicación:**
-- `pb-24` en mobile: Agrega 6rem (96px) de padding-bottom en pantallas pequeñas
-- `md:pb-8` en desktop: Vuelve al padding normal de 2rem (32px) en pantallas medianas+
-- Esto permite que en mobile haya suficiente espacio para scrollear y ver completamente el botón de descarga sin que se sobreponga con elementos del navegador o UI del dispositivo
+```typescript
+// Nuevo bloque antes del error existente
+if (!authLoading && !user && (error || !clientConfig)) {
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-background p-4">
+      <Card className="max-w-md w-full text-center p-8">
+        <LogIn className="w-16 h-16 mx-auto text-primary mb-4" />
+        <h1 className="text-2xl font-bold mb-2">Inicia sesion para continuar</h1>
+        <p className="text-muted-foreground mb-6">
+          Necesitas una cuenta para acceder a esta tienda.
+        </p>
+        <div className="space-y-3">
+          <Button asChild className="w-full">
+            <Link to="/auth">Iniciar sesion</Link>
+          </Button>
+          <p className="text-sm text-muted-foreground">
+            No tenes cuenta?{' '}
+            <Link to="/auth" className="text-primary underline">
+              Registrate
+            </Link>
+          </p>
+        </div>
+      </Card>
+    </div>
+  );
+}
+```
 
 ### Archivos a modificar
 
 | Archivo | Cambio |
 |---------|--------|
-| `src/pages/Index.tsx` | Agregar `pb-24 md:pb-8` al contenedor principal (línea 462) |
+| `src/pages/ClientStore.tsx` | Importar `useAuth`, `Link`, `LogIn`. Agregar bloque condicional que muestra cartel de login cuando el usuario no esta autenticado |
 
