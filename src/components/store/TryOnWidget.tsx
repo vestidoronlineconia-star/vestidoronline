@@ -7,7 +7,7 @@ import { Card } from '@/components/ui/card';
 import { FileUpload } from '@/components/FileUpload';
 import { LoadingProgress } from '@/components/LoadingProgress';
 import { supabase } from '@/integrations/supabase/client';
-import { compressImage } from '@/lib/imageCompression';
+
 import { toast } from 'sonner';
 import { Sparkles, RotateCcw, Download } from 'lucide-react';
 import type { FileData, TryOnStatus } from '@/types';
@@ -26,21 +26,20 @@ const base64ToBlob = (dataUrl: string): Blob => {
 const saveToStorageAndHistory = async (
   userId: string,
   userEmail: string | undefined,
-  userPhotoFile: File,
+  userPhotoBlob: Blob,
   resultBase64: string,
   category: string,
   selectedSize: string | null,
 ) => {
   try {
     const timestamp = Date.now();
-    const compressed = await compressImage(userPhotoFile, 1024, 0.7);
     const resultBlob = base64ToBlob(resultBase64);
 
     const userPath = `${userId}/${timestamp}-user.jpg`;
     const resultPath = `${userId}/${timestamp}-result.jpg`;
 
     const [userUpload, resultUpload] = await Promise.all([
-      supabase.storage.from('tryon-results').upload(userPath, compressed.blob, { contentType: 'image/jpeg' }),
+      supabase.storage.from('tryon-results').upload(userPath, userPhotoBlob, { contentType: 'image/jpeg' }),
       supabase.storage.from('tryon-results').upload(resultPath, resultBlob, { contentType: 'image/jpeg' }),
     ]);
 
@@ -192,13 +191,13 @@ export const TryOnWidget = ({ product, selectedSize, clientConfig }: TryOnWidget
         });
 
         // Save to storage and history
-        if (user && userPhoto?.file) {
+        if (user && userPhoto?.compressed?.blob) {
           console.log('Saving to storage and history for user:', user.id);
           try {
             await saveToStorageAndHistory(
               user.id,
               user.email,
-              userPhoto.file,
+              userPhoto.compressed.blob,
               generateData.image,
               product.category,
               selectedSize,
@@ -208,7 +207,7 @@ export const TryOnWidget = ({ product, selectedSize, clientConfig }: TryOnWidget
             toast.warning('No se pudo guardar en el historial');
           }
         } else {
-          console.log('Skipping history save - user:', !!user, 'userPhoto.file:', !!userPhoto?.file);
+          console.log('Skipping history save - user:', !!user, 'userPhoto.compressed:', !!userPhoto?.compressed?.blob);
         }
       } else {
         throw new Error('No se recibió la imagen resultado');
