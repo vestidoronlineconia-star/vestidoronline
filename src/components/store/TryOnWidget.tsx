@@ -191,16 +191,24 @@ export const TryOnWidget = ({ product, selectedSize, clientConfig }: TryOnWidget
           referer_domain: window.location.hostname,
         });
 
-        // Save to storage in background (non-blocking)
+        // Save to storage and history
         if (user && userPhoto?.file) {
-          saveToStorageAndHistory(
-            user.id,
-            user.email,
-            userPhoto.file,
-            generateData.image,
-            product.category,
-            selectedSize,
-          );
+          console.log('Saving to storage and history for user:', user.id);
+          try {
+            await saveToStorageAndHistory(
+              user.id,
+              user.email,
+              userPhoto.file,
+              generateData.image,
+              product.category,
+              selectedSize,
+            );
+          } catch (saveErr) {
+            console.error('Failed to save to history:', saveErr);
+            toast.warning('No se pudo guardar en el historial');
+          }
+        } else {
+          console.log('Skipping history save - user:', !!user, 'userPhoto.file:', !!userPhoto?.file);
         }
       } else {
         throw new Error('No se recibió la imagen resultado');
