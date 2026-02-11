@@ -1,73 +1,54 @@
 
 
-# Plan: Mostrar mensaje de inicio de sesion para usuarios no autenticados en tiendas
+# Plan: Redirigir al usuario a la tienda original despues del login
 
 ## Problema
 
-Despues de la correccion de seguridad reciente, se elimino la politica publica de SELECT en `embed_clients`. Esto causa que usuarios no autenticados no puedan cargar ninguna tienda (`/tienda/santiago`), mostrando "Tienda no encontrada" en vez de un mensaje util.
+Cuando un usuario no autenticado visita `/tienda/santiago`, se le muestra el cartel de login con un link a `/auth`. Despues de iniciar sesion o registrarse, el codigo actual siempre redirige a `/` (la pagina principal) en vez de volver a la tienda donde estaba.
 
 ## Solucion
 
-Modificar `ClientStore.tsx` para detectar cuando el usuario no esta autenticado y mostrar un cartel invitandolo a iniciar sesion o registrarse, con un boton que lo lleve a `/auth`.
+Usar un parametro `redirect` en la URL para recordar de donde vino el usuario y redirigirlo ahi despues del login.
 
 ## Cambios
 
-### Archivo: `src/pages/ClientStore.tsx`
+### 1. `src/pages/ClientStore.tsx`
 
-1. Importar `useAuth` y componentes necesarios (`Link` de react-router-dom, icono `LogIn`).
+Modificar los links de login/registro para incluir la ruta actual como parametro:
 
-2. Obtener `{ user, loading: authLoading }` de `useAuth()`.
+- Cambiar `<Link to="/auth">` por `<Link to={"/auth?redirect=" + encodeURIComponent(location.pathname)}>`
+- Importar `useLocation` de react-router-dom
 
-3. Agregar una condicion antes del error de "Tienda no encontrada": si el usuario no esta autenticado y hubo error al cargar la tienda, mostrar un cartel con:
-   - Icono de login
-   - Titulo: "Inicia sesion para continuar"
-   - Descripcion: "Necesitas una cuenta para acceder a esta tienda"
-   - Boton "Iniciar sesion" que navega a `/auth`
-   - Link "Crear cuenta" debajo
+### 2. `src/pages/Auth.tsx`
 
-El bloque de error existente (lineas ~56-66) se modifica para agregar esta comprobacion:
+Modificar la logica post-login para leer el parametro `redirect`:
+
+- Importar `useSearchParams` de react-router-dom
+- Leer `searchParams.get('redirect')` al inicio del componente
+- En el `handleSubmit`, despues de login exitoso (linea 179), cambiar `navigate('/')` por `navigate(redirectPath || '/')`
+- En el `emailRedirectTo` del signup (linea 198), agregar el redirect path: cambiar a `` `${window.location.origin}${redirectPath || '/'}` ``
+
+### 3. `src/App.tsx`
+
+Modificar el componente `AuthRoute` para preservar el parametro redirect:
+
+- Cuando un usuario ya logueado visita `/auth?redirect=/tienda/santiago`, redirigirlo al `redirect` en vez de siempre a `/`
+- Leer `searchParams.get('redirect')` y usar ese valor en el `Navigate`
+
+## Flujo resultante
 
 ```text
-if (!user && (error || !clientConfig)) {
-  -> Mostrar cartel de login/registro
-} else if (error || !clientConfig) {
-  -> Mostrar "Tienda no encontrada" (caso de usuario logueado sin acceso)
-}
+1. Usuario visita /tienda/sasa (no logueado)
+2. Ve cartel "Inicia sesion" con boton que apunta a /auth?redirect=/tienda/sasa
+3. Inicia sesion o se registra
+4. Es redirigido a /tienda/sasa automaticamente
 ```
 
-### Detalle tecnico
-
-```typescript
-// Nuevo bloque antes del error existente
-if (!authLoading && !user && (error || !clientConfig)) {
-  return (
-    <div className="min-h-screen flex items-center justify-center bg-background p-4">
-      <Card className="max-w-md w-full text-center p-8">
-        <LogIn className="w-16 h-16 mx-auto text-primary mb-4" />
-        <h1 className="text-2xl font-bold mb-2">Inicia sesion para continuar</h1>
-        <p className="text-muted-foreground mb-6">
-          Necesitas una cuenta para acceder a esta tienda.
-        </p>
-        <div className="space-y-3">
-          <Button asChild className="w-full">
-            <Link to="/auth">Iniciar sesion</Link>
-          </Button>
-          <p className="text-sm text-muted-foreground">
-            No tenes cuenta?{' '}
-            <Link to="/auth" className="text-primary underline">
-              Registrate
-            </Link>
-          </p>
-        </div>
-      </Card>
-    </div>
-  );
-}
-```
-
-### Archivos a modificar
+## Seccion tecnica
 
 | Archivo | Cambio |
 |---------|--------|
-| `src/pages/ClientStore.tsx` | Importar `useAuth`, `Link`, `LogIn`. Agregar bloque condicional que muestra cartel de login cuando el usuario no esta autenticado |
+| `src/pages/ClientStore.tsx` | Agregar `useLocation`, pasar `redirect` query param en links a `/auth` |
+| `src/pages/Auth.tsx` | Leer `redirect` de query params, usarlo en `navigate()` post-login y en `emailRedirectTo` |
+| `src/App.tsx` | En `AuthRoute`, leer `redirect` param y usarlo en `Navigate` cuando el usuario ya esta logueado |
 
