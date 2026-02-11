@@ -16,6 +16,17 @@ import { FileData, TryOnStatus, View360Status } from "@/types";
 // Check if we're in development mode
 const isDev = import.meta.env.DEV;
 
+const base64ToBlob = (base64: string): Blob => {
+  const data = base64.includes(',') ? base64.split(',')[1] : base64;
+  const byteString = atob(data);
+  const ab = new ArrayBuffer(byteString.length);
+  const ia = new Uint8Array(ab);
+  for (let i = 0; i < byteString.length; i++) {
+    ia[i] = byteString.charCodeAt(i);
+  }
+  return new Blob([ab], { type: 'image/jpeg' });
+};
+
 const Index = () => {
   const { user } = useAuth();
   const [userImg, setUserImg] = useState<FileData | null>(null);
@@ -136,6 +147,53 @@ const Index = () => {
       compressed_size_kb: compressed.compressedSize,
       user_id: user.id,
     });
+  };
+
+  const saveResultToHistory = async (
+    userId: string,
+    userEmail: string | undefined,
+    userBlob: Blob,
+    garmentBlob: Blob,
+    resultBase64: string,
+    category: string,
+    uSize: string,
+    gSize: string,
+    fit: FitResult,
+  ) => {
+    const timestamp = Date.now();
+    const resultBlob = base64ToBlob(resultBase64);
+
+    const userPath = `${userId}/${timestamp}-user.jpg`;
+    const garmentPath = `${userId}/${timestamp}-garment.jpg`;
+    const resultPath = `${userId}/${timestamp}-result.jpg`;
+
+    const [userUp, garmentUp, resultUp] = await Promise.all([
+      supabase.storage.from('tryon-results').upload(userPath, userBlob, { contentType: 'image/jpeg' }),
+      supabase.storage.from('tryon-results').upload(garmentPath, garmentBlob, { contentType: 'image/jpeg' }),
+      supabase.storage.from('tryon-results').upload(resultPath, resultBlob, { contentType: 'image/jpeg' }),
+    ]);
+
+    if (userUp.error || garmentUp.error || resultUp.error) {
+      console.error('Storage upload errors:', userUp.error, garmentUp.error, resultUp.error);
+      throw new Error('Failed to upload images to storage');
+    }
+
+    const { error: insertError } = await supabase.from('tryon_history').insert({
+      user_id: userId,
+      user_email: userEmail || null,
+      user_image_url: userPath,
+      garment_image_url: garmentPath,
+      generated_image_url: resultPath,
+      category,
+      user_size: uSize,
+      garment_size: gSize,
+      fit_result: fit.label,
+    });
+
+    if (insertError) {
+      console.error('History insert error:', insertError);
+      throw insertError;
+    }
   };
 
   const handleProcess = async () => {
@@ -270,6 +328,26 @@ const Index = () => {
       setView360Status("idle");
       setStatus("complete");
       toast.success("¡Imagen generada con éxito!");
+
+      // Save to history for authenticated users
+      if (user && userImg?.compressed?.blob && clothImg?.compressed?.blob) {
+        try {
+          await saveResultToHistory(
+            user.id,
+            user.email,
+            userImg.compressed.blob,
+            clothImg.compressed.blob,
+            generateData.image,
+            selectedCategory,
+            userSize,
+            garmentSize,
+            currentFit,
+          );
+          toast.success("Resultado guardado en tu historial");
+        } catch (err) {
+          console.error('Error saving to history:', err);
+        }
+      }
 
     } catch (e: unknown) {
       setStatus("error");
