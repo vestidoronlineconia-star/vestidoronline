@@ -232,7 +232,7 @@ export default function Auth() {
       <div className="w-full max-w-md relative">
         <div className="backdrop-blur-xl bg-card/30 border border-white/10 rounded-2xl p-8 shadow-2xl">
           <h1 className="text-2xl font-bold text-center mb-2">
-            Virtual Try-On
+            Prueba ropa digitalmente
           </h1>
           <p className="text-muted-foreground text-center mb-6">
             {isLogin ? 'Inicia sesión para continuar' : 'Crea tu cuenta'}
