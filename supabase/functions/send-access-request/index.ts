@@ -104,7 +104,7 @@ const handler = async (req: Request): Promise<Response> => {
         console.error("Cannot send email: RESEND_API_KEY is not configured");
       } else {
         const emailResponse = await resend.emails.send({
-          from: "Vestidor Online <onboarding@resend.dev>",
+          from: "Vestidor Online <noreply@vestidor.online>",
           to: ["vestidoronlineconia@gmail.com"],
           subject: `Nueva Solicitud de Acceso: ${company_name || user.email}`,
           html: `

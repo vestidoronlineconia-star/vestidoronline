@@ -67,7 +67,7 @@ const handler = async (req: Request): Promise<Response> => {
     const roleLabel = ROLE_LABELS[role] || role;
 
     const emailResponse = await resend.emails.send({
-      from: "Vestidor Online <onboarding@resend.dev>",
+      from: "Vestidor Online <noreply@vestidor.online>",
       to: [email],
       subject: "¡Felicidades! Tu acceso a Vestidor Online está listo",
       html: `
