@@ -204,23 +204,17 @@ export default function Auth() {
           return;
         }
 
-        const { error } = await supabase.auth.signUp({
-          email: validation.data.email,
-          password: validation.data.password,
-          options: {
-            emailRedirectTo: 'https://vestidoronline.lovable.app/auth/callback',
-          },
+        // Register via edge function (creates user + sends branded email via Resend)
+        const { data: signupData, error: signupError } = await supabase.functions.invoke('send-confirmation-email', {
+          body: { email: validation.data.email, password: validation.data.password },
         });
-        if (error) throw error;
 
-        // Send branded confirmation email via Resend
-        try {
-          await supabase.functions.invoke('send-confirmation-email', {
-            body: { email: validation.data.email },
-          });
-        } catch (emailErr) {
-          console.error('Error sending branded confirmation email:', emailErr);
-          // Non-blocking: user still gets the default system email
+        if (signupError || signupData?.error) {
+          const errMsg = signupData?.error || signupError?.message;
+          if (errMsg === 'already_registered') {
+            throw new Error('already registered');
+          }
+          throw new Error(errMsg || 'Error al registrar');
         }
 
         toast({
