@@ -1,66 +1,43 @@
 
 
-# Emails de verificacion desde vestidor.online via Resend
+# Fix: Registro completo via edge function con Resend
 
-## Problema
+## Problema actual
 
-Cuando un usuario se registra, el email de verificacion lo envia el sistema por defecto con un enlace que apunta al dominio de preview de Lovable en lugar de a `vestidoronline.lovable.app`. Ademas, el remitente no es `vestidor.online`.
+El flujo actual tiene un conflicto:
+
+1. El frontend llama a `supabase.auth.signUp()` que crea el usuario Y envia el email por defecto de Supabase (con enlace al dominio incorrecto)
+2. Luego llama a la edge function `send-confirmation-email` que intenta generar OTRO link con `admin.generateLink({ type: "signup" })` para un usuario que ya fue creado
+
+Resultado: el usuario recibe el email de Supabase (no de Resend), o recibe dos emails, y el link de confirmacion del segundo puede no funcionar correctamente porque el usuario ya existe.
 
 ## Solucion
 
-### 1. Crear edge function `send-confirmation-email`
+Mover TODO el proceso de registro a la edge function. En vez de que el frontend haga `signUp` y luego llame a la edge function, el frontend solo llama a la edge function que hace ambas cosas:
 
-Nueva funcion en `supabase/functions/send-confirmation-email/index.ts` que:
-- Recibe el email del usuario recien registrado
-- Usa el cliente admin de Supabase (`admin.generateLink`) para generar el enlace de confirmacion apuntando a `https://vestidoronline.lovable.app/auth/callback`
-- Envia el email via Resend desde `noreply@vestidor.online` con diseno consistente con los emails de invitacion existentes
+1. Crea el usuario via `admin.generateLink({ type: "signup", email, password })` (esto crea el usuario Y genera el link, sin enviar email automatico)
+2. Envia el email de confirmacion via Resend con el link correcto
 
-### 2. Actualizar `src/pages/Auth.tsx`
+### Cambios en `supabase/functions/send-confirmation-email/index.ts`
 
-- Despues de un `signUp` exitoso, llamar a la edge function `send-confirmation-email` para enviar el email personalizado
-- Cambiar `emailRedirectTo` para que siempre use `https://vestidoronline.lovable.app/auth/callback` en lugar de `window.location.origin`
+- Recibir `email` y `password` en el body
+- Usar `admin.generateLink({ type: "signup", email, password, options: { redirectTo } })` que crea el usuario y genera el link sin enviar email automatico
+- Enviar solo el email de Resend con el link generado
 
-### 3. Configurar la edge function en `supabase/config.toml`
+### Cambios en `src/pages/Auth.tsx`
 
-- Agregar la nueva funcion con `verify_jwt = false` ya que necesita ser llamada justo despues del registro (el usuario aun no tiene sesion confirmada)
+- Reemplazar `supabase.auth.signUp()` + llamada separada a la edge function por UNA sola llamada a la edge function con email y password
+- Manejar errores de la edge function (usuario ya registrado, etc.)
 
-## Detalle tecnico
+### Configuracion `supabase/config.toml`
 
-### Edge function `send-confirmation-email`
-
-```text
-POST /send-confirmation-email
-Body: { email: string }
-
-Flujo:
-1. Crear cliente Supabase con service_role_key
-2. Llamar admin.generateLink({ type: 'signup', email, options: { redirectTo: 'https://vestidoronline.lovable.app/auth/callback' } })
-3. Obtener action_link del resultado
-4. Enviar email via Resend con template HTML branded
-5. Retornar success/error
-```
-
-### Cambios en Auth.tsx
-
-- Despues de `supabase.auth.signUp()`, invocar la edge function con el email
-- El redirect en signUp se fija a la URL publicada: `https://vestidoronline.lovable.app/auth/callback`
-
-### Template del email
-
-Seguira el mismo estilo visual que los emails de invitacion existentes (send-team-invitation), con:
-- Header "Vestidor Online" en violeta
-- Boton CTA "Confirmar mi Email" que apunta al action_link generado
-- Footer con branding
-
-### Nota importante
-
-El usuario podria recibir tambien el email por defecto del sistema de autenticacion. El email personalizado de Resend sera el que tenga el branding correcto y el enlace al dominio correcto. Se puede instruir a los usuarios a usar ese email.
+- Agregar `[functions.send-confirmation-email]` con `verify_jwt = false` (necesario porque el usuario aun no tiene sesion)
 
 ## Resumen
 
 | Componente | Cambio |
 |-----------|--------|
-| `supabase/functions/send-confirmation-email/index.ts` | Nueva edge function que genera link y envia email via Resend |
-| `supabase/config.toml` | Agregar configuracion de la nueva funcion |
-| `src/pages/Auth.tsx` | Llamar a la edge function post-registro, fijar redirectTo al dominio publicado |
+| `send-confirmation-email` edge function | Recibe password, crea usuario via admin API, envia solo email de Resend |
+| `Auth.tsx` | Una sola llamada a la edge function en vez de signUp + edge function |
+| `config.toml` | Agregar configuracion de la funcion |
 
