@@ -16,7 +16,7 @@ const handler = async (req: Request): Promise<Response> => {
   }
 
   try {
-    const { email } = await req.json();
+    const { email, password } = await req.json();
 
     if (!email || typeof email !== "string") {
       return new Response(
@@ -25,7 +25,14 @@ const handler = async (req: Request): Promise<Response> => {
       );
     }
 
-    console.log("Generating confirmation link for:", email);
+    if (!password || typeof password !== "string") {
+      return new Response(
+        JSON.stringify({ error: "Password is required" }),
+        { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
+
+    console.log("Creating user and generating confirmation link for:", email);
 
     // Create admin client with service role key
     const supabaseAdmin = createClient(
@@ -33,26 +40,46 @@ const handler = async (req: Request): Promise<Response> => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
 
-    // Generate the confirmation link pointing to the published domain
+    // Create user AND generate confirmation link in one step
+    // admin.generateLink with type "signup" + password creates the user
+    // and returns the action_link WITHOUT sending the default system email
     const { data: linkData, error: linkError } =
       await supabaseAdmin.auth.admin.generateLink({
         type: "signup",
         email,
+        password,
         options: {
           redirectTo: "https://vestidoronline.lovable.app/auth/callback",
         },
       });
 
-    if (linkError || !linkData?.properties?.action_link) {
+    if (linkError) {
       console.error("Error generating link:", linkError);
+      
+      // Handle "already registered" case
+      if (linkError.message?.includes("already been registered") || linkError.message?.includes("already exists")) {
+        return new Response(
+          JSON.stringify({ error: "already_registered" }),
+          { status: 409, headers: { "Content-Type": "application/json", ...corsHeaders } }
+        );
+      }
+
       return new Response(
-        JSON.stringify({ error: "Failed to generate confirmation link", details: linkError?.message }),
+        JSON.stringify({ error: "signup_failed", details: linkError.message }),
+        { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
+
+    if (!linkData?.properties?.action_link) {
+      console.error("No action_link in response");
+      return new Response(
+        JSON.stringify({ error: "signup_failed", details: "No confirmation link generated" }),
         { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } }
       );
     }
 
     const actionLink = linkData.properties.action_link;
-    console.log("Confirmation link generated, sending email...");
+    console.log("User created and confirmation link generated, sending email via Resend...");
 
     // Send branded email via Resend
     const emailResponse = await resend.emails.send({
@@ -113,7 +140,7 @@ const handler = async (req: Request): Promise<Response> => {
     if (emailResponse.error) {
       console.error("Resend API error:", emailResponse.error);
       return new Response(
-        JSON.stringify({ error: "Failed to send email", details: emailResponse.error }),
+        JSON.stringify({ error: "email_failed", details: emailResponse.error }),
         { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } }
       );
     }
