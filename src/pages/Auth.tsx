@@ -208,10 +208,21 @@ export default function Auth() {
           email: validation.data.email,
           password: validation.data.password,
           options: {
-            emailRedirectTo: `${window.location.origin}${redirectPath || '/'}`,
+            emailRedirectTo: 'https://vestidoronline.lovable.app/auth/callback',
           },
         });
         if (error) throw error;
+
+        // Send branded confirmation email via Resend
+        try {
+          await supabase.functions.invoke('send-confirmation-email', {
+            body: { email: validation.data.email },
+          });
+        } catch (emailErr) {
+          console.error('Error sending branded confirmation email:', emailErr);
+          // Non-blocking: user still gets the default system email
+        }
+
         toast({
           title: 'Cuenta creada',
           description: 'Revisa tu bandeja de entrada para confirmar tu email',
