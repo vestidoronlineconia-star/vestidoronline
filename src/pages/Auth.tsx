@@ -80,6 +80,7 @@ export default function Auth() {
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -169,6 +170,16 @@ export default function Auth() {
       return;
     }
 
+    // Validar confirmación de contraseña en registro
+    if (!isLogin && password !== confirmPassword) {
+      toast({
+        title: 'Error',
+        description: 'Las contraseñas no coinciden',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     setLoading(true);
 
     try {
@@ -203,13 +214,14 @@ export default function Auth() {
         if (error) throw error;
         toast({
           title: 'Cuenta creada',
-          description: 'Ya puedes iniciar sesión',
+          description: 'Revisa tu bandeja de entrada para confirmar tu email',
         });
-        setIsLogin(true);
       }
     } catch (error: any) {
       let message = 'Error de autenticación';
-      if (error.message?.includes('Invalid login')) {
+      if (error.message?.includes('Email not confirmed')) {
+        message = 'Debes confirmar tu email antes de iniciar sesión. Revisa tu bandeja de entrada.';
+      } else if (error.message?.includes('Invalid login')) {
         message = 'Email o contraseña incorrectos';
       } else if (error.message?.includes('already registered')) {
         message = 'Este email ya está registrado';
@@ -323,6 +335,31 @@ export default function Auth() {
                 </div>
               )}
             </div>
+
+            {/* Campo de confirmar contraseña (solo en registro) */}
+            {!isLogin && (
+              <div className="space-y-2">
+                <Label htmlFor="confirmPassword">Confirmar Contraseña</Label>
+                <Input
+                  id="confirmPassword"
+                  type="password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  placeholder="••••••••"
+                  required
+                  maxLength={128}
+                  autoComplete="new-password"
+                />
+                {confirmPassword.length > 0 && (
+                  <div className="text-xs mt-1">
+                    <RequirementItem
+                      met={password === confirmPassword}
+                      text={password === confirmPassword ? 'Las contraseñas coinciden' : 'Las contraseñas no coinciden'}
+                    />
+                  </div>
+                )}
+              </div>
+            )}
 
             <Button type="submit" className="w-full" disabled={loading || checking}>
               {checking 
