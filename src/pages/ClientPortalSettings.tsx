@@ -119,7 +119,6 @@ const ClientPortalSettings = () => {
         .from('embed_clients')
         .select('*')
         .eq('id', clientId)
-        .eq('user_id', user.id)
         .single();
 
       if (error) throw error;
