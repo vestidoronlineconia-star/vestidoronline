@@ -379,7 +379,37 @@ export default function Auth() {
           </form>
 
 
-          <div className="mt-4 text-center">
+          {isLogin && (
+            <div className="mt-4 text-center">
+              <button
+                type="button"
+                onClick={async () => {
+                  if (!email) {
+                    toast({ title: 'Ingresá tu email', description: 'Escribí tu email arriba y luego hacé clic en "Olvidé mi contraseña"', variant: 'destructive' });
+                    return;
+                  }
+                  setLoading(true);
+                  try {
+                    const { data, error } = await supabase.functions.invoke('send-password-reset', {
+                      body: { email: email.trim() },
+                    });
+                    if (error || data?.error) throw new Error(data?.error || error?.message);
+                    toast({ title: 'Email enviado', description: 'Revisá tu bandeja de entrada para restablecer tu contraseña.' });
+                  } catch (err: any) {
+                    toast({ title: 'Error', description: err.message || 'No se pudo enviar el email', variant: 'destructive' });
+                  } finally {
+                    setLoading(false);
+                  }
+                }}
+                className="text-sm text-primary hover:underline transition-colors"
+                disabled={loading}
+              >
+                ¿Olvidaste tu contraseña?
+              </button>
+            </div>
+          )}
+
+          <div className="mt-2 text-center">
             <button
               type="button"
               onClick={() => setIsLogin(!isLogin)}
