@@ -53,7 +53,7 @@ interface EmbedClient {
 }
 
 const ClientPortal = () => {
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const { isAdmin, isClient, canCreateClients, loading: roleLoading } = useUserRole();
   const navigate = useNavigate();
   const [clients, setClients] = useState<EmbedClient[]>([]);
@@ -68,16 +68,17 @@ const ClientPortal = () => {
   const hasAccess = isAdmin || isClient;
 
   useEffect(() => {
+    if (roleLoading) return;
     if (hasAccess) {
       loadClients();
     } else {
       setLoading(false);
     }
-  }, [user, hasAccess]);
+  }, [user, hasAccess, roleLoading]);
 
   const loadClients = async () => {
     if (!user) return;
-    
+    setLoading(true);
     try {
       // 1. Fetch clients where user is the owner
       const { data: ownClients, error: ownError } = await supabase
@@ -112,7 +113,7 @@ const ClientPortal = () => {
       const teamClientsWithRole: EmbedClient[] = (teamMemberships || [])
         .filter(m => m.embed_clients && !ownClients?.some(oc => oc.id === m.client_id))
         .map(m => ({
-          ...(m.embed_clients as any),
+          ...(m.embed_clients as EmbedClient),
           userRole: m.role as 'owner' | 'admin' | 'editor' | 'viewer',
           isOwner: false,
         }));
@@ -252,7 +253,7 @@ const ClientPortal = () => {
     toast.success('URL del subdominio copiada');
   };
 
-  if (loading || roleLoading) {
+  if (loading || roleLoading || authLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <Loader2 className="w-8 h-8 animate-spin text-primary" />

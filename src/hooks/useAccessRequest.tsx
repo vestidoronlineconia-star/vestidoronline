@@ -54,7 +54,6 @@ export function useAccessRequest() {
       if (error) throw error;
       setRequest(data as AccessRequest | null);
     } catch (error: any) {
-      console.error('Error fetching access request:', error);
     } finally {
       setLoading(false);
     }
@@ -73,20 +72,18 @@ export function useAccessRequest() {
     try {
       setSubmitting(true);
 
-      const { data: response, error } = await supabase.functions.invoke('send-access-request', {
-        body: data,
-      });
+      const { error } = await supabase
+        .from('access_requests')
+        .insert({
+          user_id: user.id,
+          email: user.email,
+          company_name: data.company_name,
+          website_url: data.website_url || null,
+          message: data.message || null,
+          status: 'pending',
+        });
 
       if (error) throw error;
-
-      if (response?.error) {
-        toast({
-          title: "Error",
-          description: response.error,
-          variant: "destructive",
-        });
-        return false;
-      }
 
       toast({
         title: "Solicitud enviada",
@@ -96,7 +93,6 @@ export function useAccessRequest() {
       await fetchRequest();
       return true;
     } catch (error: any) {
-      console.error('Error submitting access request:', error);
       toast({
         title: "Error",
         description: "No se pudo enviar la solicitud. Intenta de nuevo.",
@@ -140,7 +136,6 @@ export function useAdminAccessRequests() {
       if (error) throw error;
       setRequests((data as AccessRequest[]) || []);
     } catch (error: any) {
-      console.error('Error fetching access requests:', error);
       toast({
         title: "Error",
         description: "No se pudieron cargar las solicitudes",
@@ -161,7 +156,6 @@ export function useAdminAccessRequests() {
       if (error) throw error;
       setExistingClients(data || []);
     } catch (error: any) {
-      console.error('Error fetching existing clients:', error);
     }
   };
 
@@ -221,7 +215,6 @@ export function useAdminAccessRequests() {
       await fetchExistingClients();
       return client;
     } catch (error: any) {
-      console.error('Error approving request:', error);
       toast({
         title: "Error",
         description: error.message || "No se pudo aprobar la solicitud",
@@ -293,7 +286,6 @@ export function useAdminAccessRequests() {
       await fetchAllRequests();
       return true;
     } catch (error: any) {
-      console.error('Error linking to existing client:', error);
       toast({
         title: "Error",
         description: error.message || "No se pudo vincular al cliente",
@@ -324,7 +316,6 @@ export function useAdminAccessRequests() {
       await fetchAllRequests();
       return true;
     } catch (error: any) {
-      console.error('Error rejecting request:', error);
       toast({
         title: "Error",
         description: "No se pudo rechazar la solicitud",

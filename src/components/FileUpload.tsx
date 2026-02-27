@@ -24,7 +24,6 @@ export const FileUpload = ({ label, onFileSelect, preview, id, icon, primaryColo
       const compressed = await compressImage(file);
       onFileSelect({ file, preview: compressed.preview, compressed });
     } catch (error) {
-      console.error("Error compressing image:", error);
       // Fallback to original if compression fails
       const reader = new FileReader();
       reader.onloadend = () => {

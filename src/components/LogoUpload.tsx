@@ -62,7 +62,6 @@ export const LogoUpload = ({ clientId, userId, currentLogoUrl, onLogoChange }: L
       onLogoChange(publicUrl);
       toast.success('Logo subido correctamente');
     } catch (error) {
-      console.error('Error uploading logo:', error);
       toast.error('Error al subir el logo');
     } finally {
       setUploading(false);
@@ -94,7 +93,6 @@ export const LogoUpload = ({ clientId, userId, currentLogoUrl, onLogoChange }: L
       onLogoChange(null);
       toast.success('Logo eliminado');
     } catch (error) {
-      console.error('Error removing logo:', error);
       toast.error('Error al eliminar el logo');
     } finally {
       setUploading(false);

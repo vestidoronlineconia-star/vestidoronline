@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { toast } from 'sonner';
 import { useTryOnHistory, TryOnHistoryItem } from '@/hooks/useTryOnHistory';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
@@ -55,7 +56,7 @@ function HistoryItemCard({ item, onView, onDelete }: HistoryItemCardProps) {
       document.body.removeChild(link);
       URL.revokeObjectURL(link.href);
     } catch (e) {
-      console.error('Download error:', e);
+      toast.error('No se pudo descargar la imagen');
     }
   };
 
@@ -184,7 +185,7 @@ function DetailModal({ item, open, onClose }: DetailModalProps) {
       document.body.removeChild(link);
       URL.revokeObjectURL(link.href);
     } catch (e) {
-      console.error('Download error:', e);
+      toast.error('No se pudo descargar la imagen');
     }
   };
 
