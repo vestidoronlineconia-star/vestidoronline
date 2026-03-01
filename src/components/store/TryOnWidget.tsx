@@ -44,12 +44,10 @@ const saveToStorageAndHistory = async (
     ]);
 
     if (userUpload.error) {
-      console.error('User photo upload error:', userUpload.error);
       toast.warning('No se pudo guardar la foto en el historial');
       return;
     }
     if (resultUpload.error) {
-      console.error('Result upload error:', resultUpload.error);
       toast.warning('No se pudo guardar el resultado en el historial');
       return;
     }
@@ -65,13 +63,11 @@ const saveToStorageAndHistory = async (
     });
 
     if (insertError) {
-      console.error('History insert error:', insertError);
       toast.warning('No se pudo registrar en el historial');
     } else {
       toast.success('Resultado guardado en tu historial');
     }
   } catch (e) {
-    console.error('Error saving to storage/history:', e);
     toast.warning('No se pudo guardar en el historial');
   }
 };
@@ -192,7 +188,6 @@ export const TryOnWidget = ({ product, selectedSize, clientConfig }: TryOnWidget
 
         // Save to storage and history
         if (user && userPhoto?.compressed?.blob) {
-          console.log('Saving to storage and history for user:', user.id);
           try {
             await saveToStorageAndHistory(
               user.id,
@@ -203,17 +198,13 @@ export const TryOnWidget = ({ product, selectedSize, clientConfig }: TryOnWidget
               selectedSize,
             );
           } catch (saveErr) {
-            console.error('Failed to save to history:', saveErr);
             toast.warning('No se pudo guardar en el historial');
           }
-        } else {
-          console.log('Skipping history save - user:', !!user, 'userPhoto.compressed:', !!userPhoto?.compressed?.blob);
         }
       } else {
         throw new Error('No se recibió la imagen resultado');
       }
     } catch (err) {
-      console.error('Try-on error:', err);
       setStatus('error');
       setErrorMessage(err instanceof Error ? err.message : 'Error al procesar');
       toast.error('Error al procesar la prueba virtual');

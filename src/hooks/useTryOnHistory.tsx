@@ -40,7 +40,6 @@ export function useTryOnHistory() {
         .order('created_at', { ascending: false });
 
       if (error) {
-        console.error('Error fetching history:', error);
         toast.error('Error al cargar el historial');
         return;
       }
@@ -75,7 +74,6 @@ export function useTryOnHistory() {
 
       setHistory(itemsWithUrls);
     } catch (e) {
-      console.error('Error fetching history:', e);
     } finally {
       setLoading(false);
     }
@@ -118,7 +116,6 @@ export function useTryOnHistory() {
       toast.success('Eliminado del historial');
       return true;
     } catch (e) {
-      console.error('Error deleting:', e);
       toast.error('Error al eliminar');
       return false;
     }
@@ -131,14 +128,12 @@ export function useTryOnHistory() {
         .insert(data);
 
       if (error) {
-        console.error('Error saving to history:', error);
         return false;
       }
 
       await fetchHistory();
       return true;
     } catch (e) {
-      console.error('Error saving:', e);
       return false;
     }
   };

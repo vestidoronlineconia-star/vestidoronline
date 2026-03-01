@@ -50,7 +50,6 @@ export const useClientBySlug = (slug: string | undefined): UseClientBySlugResult
           .maybeSingle();
 
         if (fetchError) {
-          console.error('Error fetching client:', fetchError);
           setError('Error al cargar la tienda');
           setClientConfig(null);
         } else if (!data) {
@@ -61,7 +60,6 @@ export const useClientBySlug = (slug: string | undefined): UseClientBySlugResult
           setError(null);
         }
       } catch (e) {
-        console.error('Unexpected error:', e);
         setError('Error inesperado');
         setClientConfig(null);
       } finally {

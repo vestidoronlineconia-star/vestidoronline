@@ -119,7 +119,6 @@ export const usePermissions = (clientId: string | null) => {
         setPermissions(ROLE_PERMISSIONS.viewer);
       }
     } catch (err) {
-      console.error('Error fetching permissions:', err);
       setRole(null);
       setPermissions(ROLE_PERMISSIONS.viewer);
     } finally {

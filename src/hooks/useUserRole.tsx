@@ -32,6 +32,7 @@ export const useUserRole = (): UserRoleState => {
         return;
       }
 
+      setLoading(true);
       try {
         // Fetch explicit roles from user_roles table
         const { data: rolesData, error: rolesError } = await supabase
@@ -40,7 +41,6 @@ export const useUserRole = (): UserRoleState => {
           .eq('user_id', user.id);
 
         if (rolesError) {
-          console.error('Error fetching user roles:', rolesError);
         }
 
         // Check if user owns any clients
@@ -51,7 +51,6 @@ export const useUserRole = (): UserRoleState => {
           .limit(1);
 
         if (ownedError) {
-          console.error('Error fetching owned clients:', ownedError);
         }
 
         const hasOwnedClients = (ownedClients && ownedClients.length > 0);
@@ -67,7 +66,6 @@ export const useUserRole = (): UserRoleState => {
           .limit(1);
 
         if (membershipError) {
-          console.error('Error fetching memberships:', membershipError);
         }
 
         const hasMemberships = (memberships && memberships.length > 0);
@@ -83,7 +81,6 @@ export const useUserRole = (): UserRoleState => {
 
         setRoles(userRoles);
       } catch (e) {
-        console.error('Error fetching roles:', e);
         setRoles([]);
         setIsClientOwner(false);
         setIsTeamMember(false);

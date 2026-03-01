@@ -49,7 +49,7 @@ const Index = () => {
   const [view360Progress, setView360Progress] = useState(0);
   const view360ProgressInterval = useRef<NodeJS.Timeout | null>(null);
   const [showingView360, setShowingView360] = useState(false);
-  const analysisRef = useRef<any>(null);
+  const analysisRef = useRef<Record<string, unknown> | null>(null);
 
   // Debug panel state
   const [debugLogs, setDebugLogs] = useState<DebugLog[]>([]);
@@ -108,6 +108,15 @@ const Index = () => {
     };
   }, [status]);
 
+  // Cleanup view360 interval on unmount
+  useEffect(() => {
+    return () => {
+      if (view360ProgressInterval.current) {
+        clearInterval(view360ProgressInterval.current);
+      }
+    };
+  }, []);
+
   // Use centralized categories
   const categories = GARMENT_CATEGORIES;
 
@@ -136,7 +145,7 @@ const Index = () => {
       .upload(fileName, compressed.blob, { contentType: 'image/jpeg' });
 
     if (uploadError) {
-      console.error('Storage upload error:', uploadError);
+      toast.warning('No se pudo guardar la imagen en el historial');
       return;
     }
 
@@ -174,7 +183,6 @@ const Index = () => {
     ]);
 
     if (userUp.error || garmentUp.error || resultUp.error) {
-      console.error('Storage upload errors:', userUp.error, garmentUp.error, resultUp.error);
       throw new Error('Failed to upload images to storage');
     }
 
@@ -191,7 +199,6 @@ const Index = () => {
     });
 
     if (insertError) {
-      console.error('History insert error:', insertError);
       throw insertError;
     }
   };
@@ -216,8 +223,8 @@ const Index = () => {
       uploadToStorage(userImg.compressed, 'user');
       uploadToStorage(clothImg.compressed, 'garment');
 
-      const userBase64 = userImg.preview.split(",")[1];
-      const clothBase64 = clothImg.preview.split(",")[1];
+      const userBase64 = userImg.preview.includes(',') ? userImg.preview.split(",")[1] : userImg.preview;
+      const clothBase64 = clothImg.preview.includes(',') ? clothImg.preview.split(",")[1] : clothImg.preview;
 
       // Step 1: Analyze images
       const analyzeLogId = addDebugLog({
@@ -242,7 +249,6 @@ const Index = () => {
           duration: Date.now() - analyzeStart,
           error: analyzeError?.message || analyzeData?.error,
         });
-        console.error('Analysis error:', analyzeError || analyzeData?.error);
         throw new Error(analyzeData?.error || 'analysis_failed');
       }
 
@@ -293,7 +299,6 @@ const Index = () => {
           duration: Date.now() - generateStart,
           error: generateError?.message || generateData?.error,
         });
-        console.error('Generation error:', generateError || generateData?.error);
         throw new Error(generateData?.error || 'generation_failed');
       }
 
@@ -345,7 +350,7 @@ const Index = () => {
           );
           toast.success("Resultado guardado en tu historial");
         } catch (err) {
-          console.error('Error saving to history:', err);
+          toast.warning('No se pudo guardar en el historial');
         }
       }
 
@@ -355,7 +360,6 @@ const Index = () => {
       const userMessage = getErrorMessage(errorCode);
       setStatusMessage(userMessage);
       toast.error(userMessage);
-      console.error('Processing error:', e);
     }
   };
 
@@ -451,7 +455,6 @@ const Index = () => {
       setView360Status("error");
       setView360Progress(0);
       toast.error("Error al generar la vista 360");
-      console.error('360 generation error:', e);
     }
   };
 

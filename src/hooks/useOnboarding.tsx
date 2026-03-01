@@ -88,7 +88,6 @@ export const useOnboarding = (clientId: string | null) => {
         setCurrentStepIndex(0);
       }
     } catch (err) {
-      console.error('Error fetching onboarding progress:', err);
     } finally {
       setLoading(false);
     }
@@ -130,7 +129,6 @@ export const useOnboarding = (clientId: string | null) => {
       } : null);
       setCurrentStepIndex(nextStepIndex);
     } catch (err) {
-      console.error('Error completing step:', err);
     }
   };
 
@@ -154,7 +152,6 @@ export const useOnboarding = (clientId: string | null) => {
       setProgress(prev => prev ? { ...prev, current_step: step } : null);
       setCurrentStepIndex(stepIndex);
     } catch (err) {
-      console.error('Error navigating to step:', err);
     }
   };
 
@@ -190,7 +187,6 @@ export const useOnboarding = (clientId: string | null) => {
 
       setProgress(prev => prev ? { ...prev, is_complete: true, current_step: 'complete' } : null);
     } catch (err) {
-      console.error('Error marking onboarding complete:', err);
     }
   };
 
@@ -218,7 +214,6 @@ export const useOnboarding = (clientId: string | null) => {
       } : null);
       setCurrentStepIndex(0);
     } catch (err) {
-      console.error('Error resetting onboarding:', err);
     }
   };
 

@@ -52,7 +52,6 @@ export const CameraCapture = ({ open, onOpenChange, onCapture }: CameraCapturePr
       
       setIsLoading(false);
     } catch (err) {
-      console.error("Error accessing camera:", err);
       setIsLoading(false);
       
       if (err instanceof Error) {
@@ -108,7 +107,6 @@ export const CameraCapture = ({ open, onOpenChange, onCapture }: CameraCapturePr
         onCapture({ file, preview: compressed.preview, compressed });
         onOpenChange(false);
       } catch (err) {
-        console.error("Error compressing image:", err);
         const preview = canvas.toDataURL("image/jpeg", 0.8);
         onCapture({ 
           file, 

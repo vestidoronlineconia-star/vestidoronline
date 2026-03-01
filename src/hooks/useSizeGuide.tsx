@@ -45,7 +45,6 @@ export const useSizeGuide = (clientId: string | undefined): UseSizeGuideResult =
 
       setSizeGuides(parsed);
     } catch (e) {
-      console.error('Error fetching size guides:', e);
       setError('Error al cargar guías de talles');
     } finally {
       setLoading(false);
@@ -95,7 +94,6 @@ export const useSizeGuide = (clientId: string | undefined): UseSizeGuideResult =
       await fetchSizeGuides();
       return true;
     } catch (e) {
-      console.error('Error saving size guide:', e);
       return false;
     }
   };
@@ -115,7 +113,6 @@ export const useSizeGuide = (clientId: string | undefined): UseSizeGuideResult =
       await fetchSizeGuides();
       return true;
     } catch (e) {
-      console.error('Error deleting size guide:', e);
       return false;
     }
   };

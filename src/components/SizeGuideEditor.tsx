@@ -204,7 +204,7 @@ export const SizeGuideEditor = ({ clientId, enabledCategories }: SizeGuideEditor
             {selectedCategory && (
               <div className="space-y-2">
                 <Label>Sistema de talles</Label>
-                <Select value={sizeSystem} onValueChange={(v) => handleSystemChange(v as any)}>
+                <Select value={sizeSystem} onValueChange={(v) => handleSystemChange(v as 'letter' | 'numeric' | 'cm')}>
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>

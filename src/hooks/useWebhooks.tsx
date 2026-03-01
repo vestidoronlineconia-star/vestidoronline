@@ -70,7 +70,6 @@ export const useWebhooks = (clientId: string | null) => {
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Error loading webhooks';
       setError(message);
-      console.error('Error fetching webhooks:', err);
     } finally {
       setLoading(false);
     }
@@ -102,7 +101,6 @@ export const useWebhooks = (clientId: string | null) => {
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Error creating webhook';
       toast.error(message);
-      console.error('Error creating webhook:', err);
       return null;
     }
   };
@@ -125,7 +123,6 @@ export const useWebhooks = (clientId: string | null) => {
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Error updating webhook';
       toast.error(message);
-      console.error('Error updating webhook:', err);
       return null;
     }
   };
@@ -145,7 +142,6 @@ export const useWebhooks = (clientId: string | null) => {
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Error deleting webhook';
       toast.error(message);
-      console.error('Error deleting webhook:', err);
       return false;
     }
   };
@@ -170,7 +166,6 @@ export const useWebhooks = (clientId: string | null) => {
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Error updating webhook status';
       toast.error(message);
-      console.error('Error toggling webhook status:', err);
       return false;
     }
   };
@@ -194,7 +189,6 @@ export const useWebhooks = (clientId: string | null) => {
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Error regenerating secret';
       toast.error(message);
-      console.error('Error regenerating secret:', err);
       return null;
     }
   };
@@ -233,7 +227,6 @@ export const useWebhooks = (clientId: string | null) => {
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Error testing webhook';
       toast.error(message);
-      console.error('Error testing webhook:', err);
       return false;
     }
   };
@@ -278,7 +271,6 @@ export const useWebhookDeliveries = (webhookId: string | null) => {
 
         setDeliveries((data || []) as WebhookDelivery[]);
       } catch (err) {
-        console.error('Error fetching webhook deliveries:', err);
       } finally {
         setLoading(false);
       }

@@ -42,12 +42,10 @@ export const useTeam = (clientId: string | null, clientName?: string) => {
       });
 
       if (error) {
-        console.error('Error sending invitation email:', error);
         return false;
       }
       return true;
     } catch (err) {
-      console.error('Error invoking send-team-invitation:', err);
       return false;
     }
   };
@@ -75,7 +73,6 @@ export const useTeam = (clientId: string | null, clientName?: string) => {
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Error loading team members';
       setError(message);
-      console.error('Error fetching team members:', err);
     } finally {
       setLoading(false);
     }
@@ -126,7 +123,6 @@ export const useTeam = (clientId: string | null, clientName?: string) => {
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Error inviting member';
       toast.error(message);
-      console.error('Error inviting member:', err);
       return null;
     }
   };
@@ -148,7 +144,6 @@ export const useTeam = (clientId: string | null, clientName?: string) => {
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Error updating member role';
       toast.error(message);
-      console.error('Error updating member role:', err);
       return false;
     }
   };
@@ -168,7 +163,6 @@ export const useTeam = (clientId: string | null, clientName?: string) => {
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Error removing member';
       toast.error(message);
-      console.error('Error removing member:', err);
       return false;
     }
   };

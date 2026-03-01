@@ -91,7 +91,6 @@ export const useProducts = (clientId: string | null) => {
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Error loading products';
       setError(message);
-      console.error('Error fetching products:', err);
     } finally {
       setLoading(false);
     }
@@ -123,7 +122,6 @@ export const useProducts = (clientId: string | null) => {
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Error creating product';
       toast.error(message);
-      console.error('Error creating product:', err);
       return null;
     }
   };
@@ -148,7 +146,6 @@ export const useProducts = (clientId: string | null) => {
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Error updating product';
       toast.error(message);
-      console.error('Error updating product:', err);
       return null;
     }
   };
@@ -168,7 +165,6 @@ export const useProducts = (clientId: string | null) => {
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Error deleting product';
       toast.error(message);
-      console.error('Error deleting product:', err);
       return false;
     }
   };
@@ -193,7 +189,6 @@ export const useProducts = (clientId: string | null) => {
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Error updating product status';
       toast.error(message);
-      console.error('Error toggling product status:', err);
       return false;
     }
   };
@@ -213,7 +208,6 @@ export const useProducts = (clientId: string | null) => {
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Error deleting products';
       toast.error(message);
-      console.error('Error bulk deleting products:', err);
       return false;
     }
   };
@@ -235,7 +229,6 @@ export const useProducts = (clientId: string | null) => {
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Error updating products';
       toast.error(message);
-      console.error('Error bulk updating products:', err);
       return false;
     }
   };
@@ -262,7 +255,6 @@ export const useProducts = (clientId: string | null) => {
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Error importing products';
       toast.error(message);
-      console.error('Error importing products:', err);
       return 0;
     }
   };
@@ -312,7 +304,6 @@ export const usePublicProducts = (clientId: string | null, category: string | nu
         if (error) throw error;
         setProducts((data || []).map(mapDbToProduct));
       } catch (err) {
-        console.error('Error fetching public products:', err);
         setProducts([]);
       } finally {
         setLoading(false);

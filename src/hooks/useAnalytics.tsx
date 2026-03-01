@@ -181,7 +181,6 @@ export const useAnalytics = (clientId: string | undefined): UseAnalyticsResult =
       setRecentActivity(recent);
 
     } catch (err) {
-      console.error('Error fetching analytics:', err);
       setError('Error al cargar los analytics');
     } finally {
       setLoading(false);
