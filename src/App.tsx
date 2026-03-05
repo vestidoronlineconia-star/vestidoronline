@@ -3,14 +3,16 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate, Outlet, useSearchParams } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, Outlet, useSearchParams, useLocation } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
+import { useUserProfile } from "@/hooks/useUserProfile";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import AuthCallback from "./pages/AuthCallback";
 import ResetPassword from "./pages/ResetPassword";
 import NotFound from "./pages/NotFound";
 import AppLayout from "./components/AppLayout";
+import Onboarding from "./pages/Onboarding";
 
 // Lazy load heavy pages for better performance
 const ClientPortal = lazy(() => import("./pages/ClientPortal"));
@@ -33,8 +35,10 @@ const queryClient = new QueryClient();
 
 function ProtectedRoute({ children }: { children?: React.ReactNode }) {
   const { user, loading } = useAuth();
+  const { profile, loading: profileLoading, needsOnboarding } = useUserProfile();
+  const location = useLocation();
 
-  if (loading) {
+  if (loading || profileLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="animate-pulse text-muted-foreground">Cargando...</div>
@@ -44,6 +48,11 @@ function ProtectedRoute({ children }: { children?: React.ReactNode }) {
 
   if (!user) {
     return <Navigate to="/auth" replace />;
+  }
+
+  // Redirect to onboarding if no profile exists or photos are missing
+  if (location.pathname !== '/onboarding' && (!profile || needsOnboarding)) {
+    return <Navigate to="/onboarding" replace />;
   }
 
   return children ? <>{children}</> : <Outlet />;
@@ -127,6 +136,9 @@ const App = () => (
           <Route path="/auth" element={<AuthRoute><Auth /></AuthRoute>} />
           <Route path="/auth/callback" element={<AuthCallback />} />
           <Route path="/reset-password" element={<ResetPassword />} />
+
+          {/* Onboarding (protected but without layout) */}
+          <Route path="/onboarding" element={<ProtectedRoute><Onboarding /></ProtectedRoute>} />
           
           {/* Catch-all */}
           <Route path="*" element={<NotFound />} />

@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { CompressionResult } from "@/lib/imageCompression";
 import { useAuth } from "@/hooks/useAuth";
+import { useUserProfile } from "@/hooks/useUserProfile";
 import { Button } from "@/components/ui/button";
 import { calculateFit, FitResult } from "@/lib/calculateFit";
 import { GARMENT_CATEGORIES, DEFAULT_SIZES } from "@/lib/categories";
@@ -29,6 +30,7 @@ const base64ToBlob = (base64: string): Blob => {
 
 const Index = () => {
   const { user } = useAuth();
+  const { profile, hasFreeUses, decrementUse } = useUserProfile();
   const [userImg, setUserImg] = useState<FileData | null>(null);
   const [clothImg, setClothImg] = useState<FileData | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
@@ -126,6 +128,12 @@ const Index = () => {
         return 'Servicio temporalmente ocupado. Intenta de nuevo en unos momentos.';
       case 'payment_required':
         return 'Servicio no disponible. Contacta al administrador.';
+      case 'FunctionsHttpError':
+      case 'FunctionsRelayError':
+      case 'FunctionsFetchError':
+        return isDev
+          ? 'Edge Function "virtual-tryon" no está deployada en el proyecto dev. Usá el entorno de producción para probar el try-on.'
+          : 'Error de conexión con el servicio. Intenta de nuevo.';
       default:
         return 'Error al procesar. Por favor, intenta de nuevo.';
     }
@@ -209,6 +217,12 @@ const Index = () => {
       return;
     }
 
+    // Check free uses
+    if (!hasFreeUses) {
+      toast.error("Se agotaron tus usos gratuitos. Elegí un plan para seguir usando el probador.");
+      return;
+    }
+
     const currentFit = calculateFit(userSize, garmentSize, null, selectedCategory);
     setFitResult(currentFit);
 
@@ -249,7 +263,7 @@ const Index = () => {
           duration: Date.now() - analyzeStart,
           error: analyzeError?.message || analyzeData?.error,
         });
-        throw new Error(analyzeData?.error || 'analysis_failed');
+        throw analyzeError || new Error(analyzeData?.error || 'analysis_failed');
       }
 
       const analysis = analyzeData.analysis;
@@ -334,6 +348,9 @@ const Index = () => {
       setStatus("complete");
       toast.success("¡Imagen generada con éxito!");
 
+      // Decrement free use counter
+      decrementUse();
+
       // Save to history for authenticated users
       if (user && userImg?.compressed?.blob && clothImg?.compressed?.blob) {
         try {
@@ -356,7 +373,7 @@ const Index = () => {
 
     } catch (e: unknown) {
       setStatus("error");
-      const errorCode = e instanceof Error ? e.message : 'unknown';
+      const errorCode = e instanceof Error ? (e.name || e.message) : 'unknown';
       const userMessage = getErrorMessage(errorCode);
       setStatusMessage(userMessage);
       toast.error(userMessage);
@@ -554,11 +571,24 @@ const Index = () => {
               </div>
             </div>
 
+            {/* Free uses indicator */}
+            {profile && (
+              <div className={`text-center text-sm py-2 rounded-lg ${
+                profile.free_uses_remaining > 0
+                  ? 'text-muted-foreground'
+                  : 'text-amber-500 bg-amber-500/10 border border-amber-500/20'
+              }`}>
+                {profile.free_uses_remaining > 0
+                  ? `${profile.free_uses_remaining} uso${profile.free_uses_remaining !== 1 ? 's' : ''} gratuito${profile.free_uses_remaining !== 1 ? 's' : ''} restante${profile.free_uses_remaining !== 1 ? 's' : ''}`
+                  : 'Sin usos gratuitos — elegí un plan para continuar'}
+              </div>
+            )}
+
             <button
               onClick={handleProcess}
-              disabled={status === "analyzing" || status === "creating" || status === "adjusting"}
+              disabled={status === "analyzing" || status === "creating" || status === "adjusting" || !hasFreeUses}
               className={`w-full py-4 rounded-2xl font-medium text-lg tracking-wide transition-all ${
-                status === "analyzing" || status === "creating" || status === "adjusting"
+                status === "analyzing" || status === "creating" || status === "adjusting" || !hasFreeUses
                   ? "bg-muted text-muted-foreground cursor-wait"
                   : "bg-primary hover:bg-primary/90 text-primary-foreground shadow-[0_0_20px_rgba(129,140,248,0.3)] hover:shadow-[0_0_30px_rgba(129,140,248,0.5)]"
               }`}
