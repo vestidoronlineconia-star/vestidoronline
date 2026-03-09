@@ -282,7 +282,7 @@ Responde ÚNICAMENTE con este JSON válido:
         debug: {
           prompt: visionPrompt.trim(),
           rawResponse: content,
-          model: 'gemini-2.0-flash',
+          model: 'gemini-2.5-flash',
           duration,
         }
       }), {
