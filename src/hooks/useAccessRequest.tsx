@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
-import { useToast } from './use-toast';
+import { toast } from 'sonner';
 
 export interface AccessRequest {
   id: string;
@@ -26,7 +26,6 @@ interface SubmitRequestData {
 
 export function useAccessRequest() {
   const { user } = useAuth();
-  const { toast } = useToast();
   const [request, setRequest] = useState<AccessRequest | null>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -53,7 +52,8 @@ export function useAccessRequest() {
 
       if (error) throw error;
       setRequest(data as AccessRequest | null);
-    } catch (error: any) {
+    } catch {
+      // Silently fail — user simply won't see their request
     } finally {
       setLoading(false);
     }
@@ -61,11 +61,7 @@ export function useAccessRequest() {
 
   const submitRequest = async (data: SubmitRequestData) => {
     if (!user) {
-      toast({
-        title: "Error",
-        description: "Debes iniciar sesión para solicitar acceso",
-        variant: "destructive",
-      });
+      toast.error("Debes iniciar sesión para solicitar acceso");
       return false;
     }
 
@@ -85,19 +81,12 @@ export function useAccessRequest() {
 
       if (error) throw error;
 
-      toast({
-        title: "Solicitud enviada",
-        description: "Tu solicitud ha sido enviada. Te notificaremos cuando sea revisada.",
-      });
+      toast.success("Tu solicitud ha sido enviada. Te notificaremos cuando sea revisada.");
 
       await fetchRequest();
       return true;
-    } catch (error: any) {
-      toast({
-        title: "Error",
-        description: "No se pudo enviar la solicitud. Intenta de nuevo.",
-        variant: "destructive",
-      });
+    } catch {
+      toast.error("No se pudo enviar la solicitud. Intenta de nuevo.");
       return false;
     } finally {
       setSubmitting(false);
@@ -115,7 +104,6 @@ export function useAccessRequest() {
 
 // Admin hook for managing all requests
 export function useAdminAccessRequests() {
-  const { toast } = useToast();
   const [requests, setRequests] = useState<AccessRequest[]>([]);
   const [existingClients, setExistingClients] = useState<{ id: string; name: string; slug: string }[]>([]);
   const [loading, setLoading] = useState(true);
@@ -135,12 +123,8 @@ export function useAdminAccessRequests() {
 
       if (error) throw error;
       setRequests((data as AccessRequest[]) || []);
-    } catch (error: any) {
-      toast({
-        title: "Error",
-        description: "No se pudieron cargar las solicitudes",
-        variant: "destructive",
-      });
+    } catch {
+      toast.error("No se pudieron cargar las solicitudes");
     } finally {
       setLoading(false);
     }
@@ -155,7 +139,8 @@ export function useAdminAccessRequests() {
 
       if (error) throw error;
       setExistingClients(data || []);
-    } catch (error: any) {
+    } catch {
+      // Non-critical — admin can still operate without client list
     }
   };
 
@@ -206,20 +191,13 @@ export function useAdminAccessRequests() {
 
       if (updateError) throw updateError;
 
-      toast({
-        title: "Solicitud aprobada",
-        description: `Se ha creado el cliente "${clientData.name}" para ${request.email}`,
-      });
+      toast.success(`Se ha creado el cliente "${clientData.name}" para ${request.email}`);
 
       await fetchAllRequests();
       await fetchExistingClients();
       return client;
-    } catch (error: any) {
-      toast({
-        title: "Error",
-        description: error.message || "No se pudo aprobar la solicitud",
-        variant: "destructive",
-      });
+    } catch (error: unknown) {
+      toast.error(error instanceof Error ? error.message : "No se pudo aprobar la solicitud");
       return null;
     }
   };
@@ -278,19 +256,12 @@ export function useAdminAccessRequests() {
 
       if (updateError) throw updateError;
 
-      toast({
-        title: "Solicitud aprobada",
-        description: `${request.email} se ha vinculado a "${client.name}" como ${role}`,
-      });
+      toast.success(`${request.email} se ha vinculado a "${client.name}" como ${role}`);
 
       await fetchAllRequests();
       return true;
-    } catch (error: any) {
-      toast({
-        title: "Error",
-        description: error.message || "No se pudo vincular al cliente",
-        variant: "destructive",
-      });
+    } catch (error: unknown) {
+      toast.error(error instanceof Error ? error.message : "No se pudo vincular al cliente");
       return false;
     }
   };
@@ -308,19 +279,12 @@ export function useAdminAccessRequests() {
 
       if (error) throw error;
 
-      toast({
-        title: "Solicitud rechazada",
-        description: "La solicitud ha sido rechazada",
-      });
+      toast.success("La solicitud ha sido rechazada");
 
       await fetchAllRequests();
       return true;
-    } catch (error: any) {
-      toast({
-        title: "Error",
-        description: "No se pudo rechazar la solicitud",
-        variant: "destructive",
-      });
+    } catch {
+      toast.error("No se pudo rechazar la solicitud");
       return false;
     }
   };

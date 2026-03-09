@@ -1,20 +1,20 @@
 import { lazy, Suspense } from "react";
-import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate, Outlet, useSearchParams, useLocation } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useUserProfile } from "@/hooks/useUserProfile";
-import Index from "./pages/Index";
-import Auth from "./pages/Auth";
 import AuthCallback from "./pages/AuthCallback";
-import ResetPassword from "./pages/ResetPassword";
 import NotFound from "./pages/NotFound";
 import AppLayout from "./components/AppLayout";
-import Onboarding from "./pages/Onboarding";
 
-// Lazy load heavy pages for better performance
+// Lazy load pages for better performance
+const Index = lazy(() => import("./pages/Index"));
+const Auth = lazy(() => import("./pages/Auth"));
+const ResetPassword = lazy(() => import("./pages/ResetPassword"));
+const Onboarding = lazy(() => import("./pages/Onboarding"));
+const Planes = lazy(() => import("./pages/Planes"));
 const ClientPortal = lazy(() => import("./pages/ClientPortal"));
 const ClientPortalSettings = lazy(() => import("./pages/ClientPortalSettings"));
 const ClientPortalDocs = lazy(() => import("./pages/ClientPortalDocs"));
@@ -31,7 +31,15 @@ const PageLoader = () => (
   </div>
 );
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 5 * 60 * 1000,   // 5 min before refetch
+      retry: 1,                    // 1 retry on failure
+      refetchOnWindowFocus: false, // avoid unnecessary refetches
+    },
+  },
+});
 
 function ProtectedRoute({ children }: { children?: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -72,7 +80,8 @@ function AuthRoute({ children }: { children: React.ReactNode }) {
   }
 
   if (user) {
-    return <Navigate to={redirectPath || "/"} replace />;
+    const safePath = redirectPath && redirectPath.startsWith('/') && !redirectPath.startsWith('//') ? redirectPath : '/';
+    return <Navigate to={safePath} replace />;
   }
 
   return <>{children}</>;
@@ -81,9 +90,9 @@ function AuthRoute({ children }: { children: React.ReactNode }) {
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
-      <Toaster />
       <Sonner />
       <BrowserRouter>
+        <Suspense fallback={<PageLoader />}>
         <Routes>
           {/* Public store route - no auth required */}
           <Route path="/tienda/:slug" element={
@@ -139,10 +148,14 @@ const App = () => (
 
           {/* Onboarding (protected but without layout) */}
           <Route path="/onboarding" element={<ProtectedRoute><Onboarding /></ProtectedRoute>} />
+
+          {/* Plans page (protected but without layout) */}
+          <Route path="/planes" element={<ProtectedRoute><Planes /></ProtectedRoute>} />
           
           {/* Catch-all */}
           <Route path="*" element={<NotFound />} />
         </Routes>
+        </Suspense>
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>

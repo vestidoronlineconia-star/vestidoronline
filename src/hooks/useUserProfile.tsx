@@ -92,16 +92,17 @@ export function useUserProfile() {
     }
   };
 
-  const decrementUse = async () => {
-    if (!user || !profile || profile.free_uses_remaining <= 0) return false;
+  const decrementUse = async (): Promise<boolean> => {
+    if (!user || !profile) return false;
     try {
-      const { error } = await supabase
-        .from('user_profiles')
-        .update({ free_uses_remaining: profile.free_uses_remaining - 1 })
-        .eq('user_id', user.id);
+      const { data, error } = await supabase
+        .rpc('decrement_free_uses', { uid: user.id });
 
       if (error) throw error;
-      setProfile(prev => prev ? { ...prev, free_uses_remaining: prev.free_uses_remaining - 1 } : null);
+      // RPC returns the new value, or -1 if no uses remaining
+      const remaining = typeof data === 'number' ? data : -1;
+      if (remaining < 0) return false;
+      setProfile(prev => prev ? { ...prev, free_uses_remaining: remaining } : null);
       return true;
     } catch {
       return false;

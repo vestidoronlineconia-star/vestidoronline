@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { useToast } from '@/hooks/use-toast';
+import { toast } from 'sonner';
 import { usePasswordValidation } from '@/hooks/usePasswordValidation';
 import { Check, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -93,7 +93,6 @@ export default function Auth() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const redirectPath = searchParams.get('redirect');
-  const { toast } = useToast();
   const { checkPassword, checking } = usePasswordValidation();
 
   const suggestions = getEmailSuggestions(email);
@@ -109,12 +108,8 @@ export default function Auth() {
         },
       });
       if (error) throw error;
-    } catch (error: any) {
-      toast({
-        title: 'Error',
-        description: error.message || 'No se pudo iniciar sesión con Google',
-        variant: 'destructive',
-      });
+    } catch (error: unknown) {
+      toast.error(error instanceof Error ? error.message : 'No se pudo iniciar sesión con Google');
       setLoading(false);
     }
   };
@@ -186,31 +181,19 @@ export default function Auth() {
     const validation = schema.safeParse({ email, password });
     
     if (!validation.success) {
-      toast({
-        title: 'Error de validación',
-        description: validation.error.errors[0].message,
-        variant: 'destructive',
-      });
+      toast.error(validation.error.errors[0].message);
       return;
     }
 
     // Validar confirmación de contraseña en registro
     if (!isLogin && password !== confirmPassword) {
-      toast({
-        title: 'Error',
-        description: 'Las contraseñas no coinciden',
-        variant: 'destructive',
-      });
+      toast.error('Las contraseñas no coinciden');
       return;
     }
 
     // Validar campos adicionales en registro
     if (!isLogin && !fullName.trim()) {
-      toast({
-        title: 'Error',
-        description: 'El nombre completo es requerido',
-        variant: 'destructive',
-      });
+      toast.error('El nombre completo es requerido');
       return;
     }
 
@@ -229,11 +212,7 @@ export default function Auth() {
         const pwdCheck = await checkPassword(validation.data.password);
 
         if (pwdCheck.isCompromised) {
-          toast({
-            title: 'Contraseña insegura',
-            description: 'Esta contraseña es muy común y fácil de adivinar. Por tu seguridad, elige una diferente.',
-            variant: 'destructive',
-          });
+          toast.error('Esta contraseña es muy común y fácil de adivinar. Por tu seguridad, elige una diferente.');
           setLoading(false);
           return;
         }
@@ -257,25 +236,19 @@ export default function Auth() {
           throw new Error(errMsg || 'Error al registrar');
         }
 
-        toast({
-          title: 'Cuenta creada',
-          description: 'Revisa tu bandeja de entrada para confirmar tu email',
-        });
+        toast.success('Cuenta creada. Revisa tu bandeja de entrada para confirmar tu email.');
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       let message = 'Error de autenticación';
-      if (error.message?.includes('Email not confirmed')) {
+      const errMsg = error instanceof Error ? error.message : '';
+      if (errMsg.includes('Email not confirmed')) {
         message = 'Debes confirmar tu email antes de iniciar sesión. Revisa tu bandeja de entrada.';
-      } else if (error.message?.includes('Invalid login')) {
+      } else if (errMsg.includes('Invalid login')) {
         message = 'Email o contraseña incorrectos';
-      } else if (error.message?.includes('already registered')) {
+      } else if (errMsg.includes('already registered')) {
         message = 'Este email ya está registrado';
       }
-      toast({
-        title: 'Error',
-        description: message,
-        variant: 'destructive',
-      });
+      toast.error(message);
     } finally {
       setLoading(false);
     }
@@ -499,7 +472,7 @@ export default function Auth() {
                 type="button"
                 onClick={async () => {
                   if (!email) {
-                    toast({ title: 'Ingresá tu email', description: 'Escribí tu email arriba y luego hacé clic en "Olvidé mi contraseña"', variant: 'destructive' });
+                    toast.error('Escribí tu email arriba y luego hacé clic en "Olvidé mi contraseña"');
                     return;
                   }
                   setLoading(true);
@@ -508,9 +481,9 @@ export default function Auth() {
                       body: { email: email.trim() },
                     });
                     if (error || data?.error) throw new Error(data?.error || error?.message);
-                    toast({ title: 'Email enviado', description: 'Revisá tu bandeja de entrada para restablecer tu contraseña.' });
-                  } catch (err: any) {
-                    toast({ title: 'Error', description: err.message || 'No se pudo enviar el email', variant: 'destructive' });
+                    toast.success('Revisá tu bandeja de entrada para restablecer tu contraseña.');
+                  } catch (err: unknown) {
+                    toast.error(err instanceof Error ? err.message : 'No se pudo enviar el email');
                   } finally {
                     setLoading(false);
                   }

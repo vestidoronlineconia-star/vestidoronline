@@ -14,6 +14,7 @@ export const compressImage = async (
     const img = new Image();
     
     img.onload = () => {
+      URL.revokeObjectURL(img.src);
       const canvas = document.createElement('canvas');
       let { width, height } = img;
 
@@ -60,7 +61,10 @@ export const compressImage = async (
       );
     };
 
-    img.onerror = () => reject(new Error('Failed to load image'));
+    img.onerror = () => {
+      URL.revokeObjectURL(img.src);
+      reject(new Error('Failed to load image'));
+    };
     img.src = URL.createObjectURL(file);
   });
 };
