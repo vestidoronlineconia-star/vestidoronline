@@ -1,43 +1,25 @@
 
 
-# Fix: Registro completo via edge function con Resend
+## Plan: Fix Camera Not Activating in Onboarding
 
-## Problema actual
+### Root Cause
 
-El flujo actual tiene un conflicto:
+Classic chicken-and-egg problem in `Onboarding.tsx`:
 
-1. El frontend llama a `supabase.auth.signUp()` que crea el usuario Y envia el email por defecto de Supabase (con enlace al dominio incorrecto)
-2. Luego llama a la edge function `send-confirmation-email` que intenta generar OTRO link con `admin.generateLink({ type: "signup" })` para un usuario que ya fue creado
+1. The `<video>` element is only rendered when `cameraActive === true` (line 338)
+2. `startCamera()` tries to assign the stream to `videoRef.current` (line 87) before setting `cameraActive = true` (line 91)
+3. Since the video element doesn't exist yet, `videoRef.current` is `null`, so the stream is never attached
+4. The camera permissions are granted, but nothing is displayed
 
-Resultado: el usuario recibe el email de Supabase (no de Resend), o recibe dos emails, y el link de confirmacion del segundo puede no funcionar correctamente porque el usuario ya existe.
+### Fix
 
-## Solucion
+**File: `src/pages/Onboarding.tsx`**
 
-Mover TODO el proceso de registro a la edge function. En vez de que el frontend haga `signUp` y luego llame a la edge function, el frontend solo llama a la edge function que hace ambas cosas:
+Two changes:
 
-1. Crea el usuario via `admin.generateLink({ type: "signup", email, password })` (esto crea el usuario Y genera el link, sin enviar email automatico)
-2. Envia el email de confirmacion via Resend con el link correcto
+1. **Always render the video element** — move it outside the `cameraActive` conditional. Use CSS to hide/show it instead of conditional rendering. This ensures `videoRef.current` is available when `startCamera` assigns the stream.
 
-### Cambios en `supabase/functions/send-confirmation-email/index.ts`
+2. **Use an `onPlaying` callback on the video** — after the stream is assigned and the video starts playing, then set `cameraActive = true` to update the UI state (hide the placeholder, show controls).
 
-- Recibir `email` y `password` en el body
-- Usar `admin.generateLink({ type: "signup", email, password, options: { redirectTo } })` que crea el usuario y genera el link sin enviar email automatico
-- Enviar solo el email de Resend con el link generado
-
-### Cambios en `src/pages/Auth.tsx`
-
-- Reemplazar `supabase.auth.signUp()` + llamada separada a la edge function por UNA sola llamada a la edge function con email y password
-- Manejar errores de la edge function (usuario ya registrado, etc.)
-
-### Configuracion `supabase/config.toml`
-
-- Agregar `[functions.send-confirmation-email]` con `verify_jwt = false` (necesario porque el usuario aun no tiene sesion)
-
-## Resumen
-
-| Componente | Cambio |
-|-----------|--------|
-| `send-confirmation-email` edge function | Recibe password, crea usuario via admin API, envia solo email de Resend |
-| `Auth.tsx` | Una sola llamada a la edge function en vez de signUp + edge function |
-| `config.toml` | Agregar configuracion de la funcion |
+The placeholder "Presioná para activar la cámara" and the preview image will overlay the video when it's not active. The video element will always be in the DOM but visually hidden behind other content until the camera is ready.
 
