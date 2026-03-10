@@ -13,7 +13,7 @@ import { z } from 'zod';
 // Regex simples y seguros (sin ReDoS)
 const HAS_UPPERCASE = /[A-Z]/;
 const HAS_LOWERCASE = /[a-z]/;
-const HAS_SPECIAL_CHAR = /[!@#$%^&*()_+\\-=\\[\\]{};':"\\|,.<>\\/?¡¿]/;
+const HAS_SPECIAL_CHAR = /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?¡¿]/;
 
 const passwordSchema = z.string()
   .min(8, 'La contraseña debe tener al menos 8 caracteres')
