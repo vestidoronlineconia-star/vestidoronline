@@ -41,6 +41,7 @@ export const useUserRole = (): UserRoleState => {
           .eq('user_id', user.id);
 
         if (rolesError) {
+          console.error('[useUserRole] Error fetching roles:', rolesError.message);
         }
 
         // Check if user owns any clients
@@ -51,6 +52,7 @@ export const useUserRole = (): UserRoleState => {
           .limit(1);
 
         if (ownedError) {
+          console.error('[useUserRole] Error fetching owned clients:', ownedError.message);
         }
 
         const hasOwnedClients = (ownedClients && ownedClients.length > 0);
@@ -66,6 +68,7 @@ export const useUserRole = (): UserRoleState => {
           .limit(1);
 
         if (membershipError) {
+          console.error('[useUserRole] Error fetching memberships:', membershipError.message);
         }
 
         const hasMemberships = (memberships && memberships.length > 0);

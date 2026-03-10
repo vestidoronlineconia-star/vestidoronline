@@ -8,24 +8,24 @@ export default function AuthCallback() {
   useEffect(() => {
     const handleCallback = async () => {
       const { data: { session }, error } = await supabase.auth.getSession();
-      
+
       if (error) {
         navigate('/auth', { replace: true });
         return;
       }
 
       if (session) {
+        await ensureProfile(session.user);
         navigate('/', { replace: true });
       } else {
-        // Listen for auth state change in case session is being established
-        const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+        const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
           if (event === 'SIGNED_IN' && session) {
             subscription.unsubscribe();
+            await ensureProfile(session.user);
             navigate('/', { replace: true });
           }
         });
 
-        // Timeout fallback
         setTimeout(() => {
           subscription.unsubscribe();
           navigate('/auth', { replace: true });
@@ -42,4 +42,29 @@ export default function AuthCallback() {
       <div className="animate-pulse text-muted-foreground">Autenticando...</div>
     </div>
   );
+}
+
+async function ensureProfile(user: { id: string; user_metadata?: Record<string, unknown>; email?: string }) {
+  try {
+    const { data } = await supabase
+      .from('user_profiles')
+      .select('id')
+      .eq('user_id', user.id)
+      .maybeSingle();
+
+    if (data) return;
+
+    const fullName =
+      (user.user_metadata?.full_name as string) ||
+      (user.user_metadata?.name as string) ||
+      user.email?.split('@')[0] ||
+      'Usuario';
+
+    await supabase.from('user_profiles').insert({
+      user_id: user.id,
+      full_name: fullName,
+    });
+  } catch {
+    // Profile creation will be retried on next visit
+  }
 }

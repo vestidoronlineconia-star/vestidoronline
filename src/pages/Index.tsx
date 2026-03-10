@@ -6,12 +6,15 @@ import { TryOnHistory } from "@/components/TryOnHistory";
 import { Sparkles, Download, RotateCw, ArrowLeft, History } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { invokeTryon } from "@/lib/tryonService";
 import { CompressionResult } from "@/lib/imageCompression";
 import { useAuth } from "@/hooks/useAuth";
+import { useUserProfile } from "@/hooks/useUserProfile";
 import { Button } from "@/components/ui/button";
 import { calculateFit, FitResult } from "@/lib/calculateFit";
 import { GARMENT_CATEGORIES, DEFAULT_SIZES } from "@/lib/categories";
 import { FileData, TryOnStatus, View360Status } from "@/types";
+import { PricingModal } from "@/components/PricingModal";
 
 // Check if we're in development mode
 const isDev = import.meta.env.DEV;
@@ -29,6 +32,7 @@ const base64ToBlob = (base64: string): Blob => {
 
 const Index = () => {
   const { user } = useAuth();
+  const { profile, hasFreeUses, decrementUse } = useUserProfile();
   const [userImg, setUserImg] = useState<FileData | null>(null);
   const [clothImg, setClothImg] = useState<FileData | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
@@ -57,6 +61,9 @@ const Index = () => {
   
   // History panel state
   const [showHistory, setShowHistory] = useState(false);
+
+  // Pricing modal state
+  const [showPricing, setShowPricing] = useState(false);
 
   const addDebugLog = (log: Omit<DebugLog, "id" | "timestamp">) => {
     const newLog: DebugLog = {
@@ -126,6 +133,12 @@ const Index = () => {
         return 'Servicio temporalmente ocupado. Intenta de nuevo en unos momentos.';
       case 'payment_required':
         return 'Servicio no disponible. Contacta al administrador.';
+      case 'FunctionsHttpError':
+      case 'FunctionsRelayError':
+      case 'FunctionsFetchError':
+        return 'Error de conexión con el servicio. Intenta de nuevo.';
+      case 'invalid_api_key':
+        return 'API key de Google inválida. Verificá VITE_GOOGLE_API_KEY en .env.local.';
       default:
         return 'Error al procesar. Por favor, intenta de nuevo.';
     }
@@ -209,6 +222,12 @@ const Index = () => {
       return;
     }
 
+    // Check free uses
+    if (!hasFreeUses) {
+      setShowPricing(true);
+      return;
+    }
+
     const currentFit = calculateFit(userSize, garmentSize, null, selectedCategory);
     setFitResult(currentFit);
 
@@ -216,12 +235,19 @@ const Index = () => {
     setDebugLogs([]);
 
     try {
+      // Decrement BEFORE processing — atomic, server-side check
+      const decremented = await decrementUse();
+      if (!decremented) {
+        setShowPricing(true);
+        return;
+      }
+
       setStatus("analyzing");
       setStatusMessage("Analizando...");
 
-      // Upload images to storage (non-blocking)
-      uploadToStorage(userImg.compressed, 'user');
-      uploadToStorage(clothImg.compressed, 'garment');
+      // Upload images to storage (non-blocking, errors handled silently)
+      uploadToStorage(userImg.compressed, 'user').catch(() => {});
+      uploadToStorage(clothImg.compressed, 'garment').catch(() => {});
 
       const userBase64 = userImg.preview.includes(',') ? userImg.preview.split(",")[1] : userImg.preview;
       const clothBase64 = clothImg.preview.includes(',') ? clothImg.preview.split(",")[1] : clothImg.preview;
@@ -234,13 +260,11 @@ const Index = () => {
       });
 
       const analyzeStart = Date.now();
-      const { data: analyzeData, error: analyzeError } = await supabase.functions.invoke('virtual-tryon', {
-        body: {
-          action: 'analyze',
-          userImage: userBase64,
-          clothImage: clothBase64,
-          category: selectedCategory,
-        },
+      const { data: analyzeData, error: analyzeError } = await invokeTryon({
+        action: 'analyze',
+        userImage: userBase64,
+        clothImage: clothBase64,
+        category: selectedCategory,
       });
 
       if (analyzeError || analyzeData?.error) {
@@ -249,7 +273,7 @@ const Index = () => {
           duration: Date.now() - analyzeStart,
           error: analyzeError?.message || analyzeData?.error,
         });
-        throw new Error(analyzeData?.error || 'analysis_failed');
+        throw analyzeError || new Error(analyzeData?.error || 'analysis_failed');
       }
 
       const analysis = analyzeData.analysis;
@@ -281,16 +305,14 @@ const Index = () => {
       });
 
       const generateStart = Date.now();
-      const { data: generateData, error: generateError } = await supabase.functions.invoke('virtual-tryon', {
-        body: {
-          action: 'generate',
-          userImage: userBase64,
-          clothImage: clothBase64,
-          category: selectedCategory,
-          userSize,
-          garmentSize,
-          analysis,
-        },
+      const { data: generateData, error: generateError } = await invokeTryon({
+        action: 'generate',
+        userImage: userBase64,
+        clothImage: clothBase64,
+        category: selectedCategory,
+        userSize,
+        garmentSize,
+        analysis,
       });
 
       if (generateError || generateData?.error) {
@@ -318,15 +340,9 @@ const Index = () => {
         },
       });
 
-      setStatus("adjusting");
-      setStatusMessage("Ajustando últimos detalles...");
-      
       // Store analysis for 360 view
       analysisRef.current = analysis;
-      
-      // Simulate final adjustments delay
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      
+
       setGeneratedImage(generateData.image);
       setView360Image(null);
       setShowingView360(false);
@@ -356,7 +372,7 @@ const Index = () => {
 
     } catch (e: unknown) {
       setStatus("error");
-      const errorCode = e instanceof Error ? e.message : 'unknown';
+      const errorCode = e instanceof Error ? (e.name || e.message) : 'unknown';
       const userMessage = getErrorMessage(errorCode);
       setStatusMessage(userMessage);
       toast.error(userMessage);
@@ -403,13 +419,11 @@ const Index = () => {
     const startTime = Date.now();
     
     try {
-      const { data, error } = await supabase.functions.invoke('virtual-tryon', {
-        body: {
-          action: 'generate360',
-          generatedImage,
-          category: selectedCategory,
-          analysis: analysisRef.current,
-        },
+      const { data, error } = await invokeTryon({
+        action: 'generate360',
+        generatedImage,
+        category: selectedCategory,
+        analysis: analysisRef.current,
       });
       
       // Clear interval and complete progress
@@ -554,11 +568,27 @@ const Index = () => {
               </div>
             </div>
 
+            {/* Free uses indicator */}
+            {profile && (
+              <div
+                className={`text-center text-sm py-2 rounded-lg ${
+                  profile.free_uses_remaining > 0
+                    ? 'text-muted-foreground'
+                    : 'text-amber-500 bg-amber-500/10 border border-amber-500/20 cursor-pointer hover:bg-amber-500/20 transition-colors'
+                }`}
+                onClick={profile.free_uses_remaining <= 0 ? () => setShowPricing(true) : undefined}
+              >
+                {profile.free_uses_remaining > 0
+                  ? `${profile.free_uses_remaining} uso${profile.free_uses_remaining !== 1 ? 's' : ''} gratuito${profile.free_uses_remaining !== 1 ? 's' : ''} restante${profile.free_uses_remaining !== 1 ? 's' : ''}`
+                  : 'Sin usos gratuitos — elegí un plan para continuar'}
+              </div>
+            )}
+
             <button
               onClick={handleProcess}
-              disabled={status === "analyzing" || status === "creating" || status === "adjusting"}
+              disabled={status === "analyzing" || status === "creating" || status === "adjusting" || !hasFreeUses}
               className={`w-full py-4 rounded-2xl font-medium text-lg tracking-wide transition-all ${
-                status === "analyzing" || status === "creating" || status === "adjusting"
+                status === "analyzing" || status === "creating" || status === "adjusting" || !hasFreeUses
                   ? "bg-muted text-muted-foreground cursor-wait"
                   : "bg-primary hover:bg-primary/90 text-primary-foreground shadow-[0_0_20px_rgba(129,140,248,0.3)] hover:shadow-[0_0_30px_rgba(129,140,248,0.5)]"
               }`}
@@ -701,6 +731,9 @@ const Index = () => {
 
         {/* History modal */}
         <TryOnHistory isOpen={showHistory} onClose={() => setShowHistory(false)} />
+
+        {/* Pricing modal */}
+        <PricingModal open={showPricing} onOpenChange={setShowPricing} />
       </div>
     </>
   );

@@ -4,7 +4,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { useToast } from '@/hooks/use-toast';
+import { toast } from 'sonner';
 import { Check, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { z } from 'zod';
@@ -40,7 +40,6 @@ export default function ResetPassword() {
   const [loading, setLoading] = useState(false);
   const [isRecovery, setIsRecovery] = useState(false);
   const navigate = useNavigate();
-  const { toast } = useToast();
   const passwordReqs = checkPasswordRequirements(password);
 
   useEffect(() => {
@@ -65,12 +64,12 @@ export default function ResetPassword() {
 
     const validation = passwordSchema.safeParse(password);
     if (!validation.success) {
-      toast({ title: 'Error', description: validation.error.errors[0].message, variant: 'destructive' });
+      toast.error(validation.error.errors[0].message);
       return;
     }
 
     if (password !== confirmPassword) {
-      toast({ title: 'Error', description: 'Las contraseñas no coinciden', variant: 'destructive' });
+      toast.error('Las contraseñas no coinciden');
       return;
     }
 
@@ -79,10 +78,10 @@ export default function ResetPassword() {
       const { error } = await supabase.auth.updateUser({ password });
       if (error) throw error;
 
-      toast({ title: 'Contraseña actualizada', description: 'Tu contraseña fue actualizada correctamente.' });
+      toast.success('Tu contraseña fue actualizada correctamente.');
       navigate('/', { replace: true });
-    } catch (error: any) {
-      toast({ title: 'Error', description: error.message || 'No se pudo actualizar la contraseña', variant: 'destructive' });
+    } catch (error: unknown) {
+      toast.error(error instanceof Error ? error.message : 'No se pudo actualizar la contraseña');
     } finally {
       setLoading(false);
     }
