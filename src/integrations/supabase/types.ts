@@ -569,6 +569,45 @@ export type Database = {
         }
         Relationships: []
       }
+      user_profiles: {
+        Row: {
+          birth_date: string | null
+          body_photo_url: string | null
+          created_at: string
+          free_uses_remaining: number
+          full_name: string
+          gender: string | null
+          id: string
+          selfie_url: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          birth_date?: string | null
+          body_photo_url?: string | null
+          created_at?: string
+          free_uses_remaining?: number
+          full_name: string
+          gender?: string | null
+          id?: string
+          selfie_url?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          birth_date?: string | null
+          body_photo_url?: string | null
+          created_at?: string
+          free_uses_remaining?: number
+          full_name?: string
+          gender?: string | null
+          id?: string
+          selfie_url?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           created_at: string | null
@@ -704,6 +743,7 @@ export type Database = {
       }
     }
     Functions: {
+      decrement_free_uses: { Args: { uid: string }; Returns: number }
       get_user_role_for_client: {
         Args: { p_client_id: string; p_user_id: string }
         Returns: Database["public"]["Enums"]["team_role"]
