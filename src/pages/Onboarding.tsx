@@ -335,28 +335,27 @@ export default function Onboarding() {
 
           {/* Camera / Preview area */}
           <div className="relative aspect-[3/4] bg-black rounded-xl overflow-hidden mb-4">
-            {cameraActive && !((step === 'selfie' && selfiePreview) || (step === 'body' && bodyPreview)) ? (
-              <>
-                <video
-                  ref={videoRef}
-                  autoPlay
-                  playsInline
-                  muted
-                  className={`w-full h-full object-cover ${facingMode === 'user' ? 'scale-x-[-1]' : ''}`}
-                />
-                {countdown !== null && (
-                  <div className="absolute inset-0 flex items-center justify-center bg-black/40">
-                    <span className="text-8xl font-bold text-white animate-pulse">{countdown}</span>
-                  </div>
-                )}
-              </>
-            ) : (step === 'selfie' && selfiePreview) || (step === 'body' && bodyPreview) ? (
+            {/* Video always in DOM so ref is available */}
+            <video
+              ref={videoRef}
+              autoPlay
+              playsInline
+              muted
+              onPlaying={() => setCameraActive(true)}
+              className={`absolute inset-0 w-full h-full object-cover ${facingMode === 'user' ? 'scale-x-[-1]' : ''} ${cameraActive && !((step === 'selfie' && selfiePreview) || (step === 'body' && bodyPreview)) ? '' : 'invisible'}`}
+            />
+            {cameraActive && !((step === 'selfie' && selfiePreview) || (step === 'body' && bodyPreview)) && countdown !== null && (
+              <div className="absolute inset-0 flex items-center justify-center bg-black/40">
+                <span className="text-8xl font-bold text-white animate-pulse">{countdown}</span>
+              </div>
+            )}
+            {(step === 'selfie' && selfiePreview) || (step === 'body' && bodyPreview) ? (
               <img
                 src={step === 'selfie' ? selfiePreview! : bodyPreview!}
                 alt={step === 'selfie' ? 'Selfie' : 'Foto cuerpo completo'}
                 className="w-full h-full object-cover"
               />
-            ) : (
+            ) : !cameraActive ? (
               <div className="w-full h-full flex flex-col items-center justify-center text-muted-foreground gap-3">
                 {cameraError ? (
                   <p className="text-sm text-center px-4">{cameraError}</p>
@@ -367,7 +366,7 @@ export default function Onboarding() {
                   </>
                 )}
               </div>
-            )}
+            ) : null}
           </div>
 
           {/* Controls */}
